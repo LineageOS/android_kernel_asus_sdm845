@@ -4348,6 +4348,8 @@ static int hub_enable_device(struct usb_device *udev)
 	return hcd->driver->enable_device(hcd, udev);
 }
 
+extern void set_otg_current_to_1p5A_needrestore(int flag);
+
 /* Reset device, (re)assign address, get device descriptor.
  * Device connection must be stable, no more debouncing needed.
  * Returns device in USB_STATE_ADDRESS, except on error.
@@ -4441,6 +4443,8 @@ hub_port_init(struct usb_hub *hub, struct usb_device *udev, int port1,
 				"%s %s USB device number %d using %s\n",
 				(udev->config) ? "reset" : "new", speed,
 				devnum, udev->bus->controller->driver->name);
+
+	set_otg_current_to_1p5A_needrestore(1);//ASUS BSP ADD
 
 	/* Set up TT records, if needed  */
 	if (hdev->tt) {

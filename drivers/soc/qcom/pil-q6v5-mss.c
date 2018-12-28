@@ -59,6 +59,7 @@ static void log_modem_sfr(void)
 
 	strlcpy(reason, smem_reason, min(size, MAX_SSR_REASON_LEN));
 	pr_err("modem subsystem failure reason: %s.\n", reason);
+        ASUSEvtlog("[SSR]:modem [%s]", reason); //ASUS_BSP+ "Evtlog for modem crash reason"
 }
 
 static void restart_modem(struct modem_data *drv)

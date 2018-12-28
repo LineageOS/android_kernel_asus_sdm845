@@ -928,7 +928,10 @@ int cam_get_dt_power_setting_data(struct device_node *of_node,
 			ps[i].seq_type = SENSOR_VANA;
 		} else if (!strcmp(seq_name, "cam_clk")) {
 			ps[i].seq_type = SENSOR_MCLK;
-		} else {
+		} else if (!strcmp(seq_name, "cam_vaf")){
+			ps[i].seq_type = SENSOR_VAF;
+		}
+		else {
 			CAM_ERR(CAM_SENSOR, "unrecognized seq-type %s",
 				seq_name);
 			rc = -EILSEQ;
@@ -1341,7 +1344,7 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 	struct cam_sensor_power_setting *power_setting = NULL;
 	struct msm_camera_gpio_num_info *gpio_num_info = NULL;
 
-	CAM_DBG(CAM_SENSOR, "Enter");
+	CAM_INFO(CAM_SENSOR, "Enter %s",soc_info->dev_name);
 	if (!ctrl) {
 		CAM_ERR(CAM_SENSOR, "Invalid ctrl handle");
 		return -EINVAL;
@@ -1565,13 +1568,15 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 				power_setting->seq_type);
 			break;
 		}
+		if(power_setting->delay)
+			CAM_INFO(CAM_SENSOR,"index %d delay is %d ms",index,power_setting->delay);
 		if (power_setting->delay > 20)
 			msleep(power_setting->delay);
 		else if (power_setting->delay)
 			usleep_range(power_setting->delay * 1000,
 				(power_setting->delay * 1000) + 1000);
 	}
-
+	CAM_INFO(CAM_SENSOR,"EXIT, rc =0, %s",soc_info->dev_name);
 	ret = cam_res_mgr_shared_pinctrl_post_init();
 	if (ret)
 		CAM_ERR(CAM_SENSOR,
@@ -1718,7 +1723,7 @@ int msm_camera_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 	struct cam_sensor_power_setting *ps = NULL;
 	struct msm_camera_gpio_num_info *gpio_num_info = NULL;
 
-	CAM_DBG(CAM_SENSOR, "Enter");
+	CAM_INFO(CAM_SENSOR, "Enter %s",soc_info->dev_name);
 	if (!ctrl || !soc_info) {
 		CAM_ERR(CAM_SENSOR, "failed ctrl %pK",  ctrl);
 		return -EINVAL;
@@ -1868,7 +1873,7 @@ int msm_camera_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 	ctrl->cam_pinctrl_status = 0;
 
 	cam_sensor_util_request_gpio_table(soc_info, 0);
-
+	CAM_INFO(CAM_SENSOR, "Exit %s",soc_info->dev_name);
 	return 0;
 }
 

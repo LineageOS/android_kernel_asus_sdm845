@@ -158,6 +158,37 @@ static ssize_t msm_rpmh_master_stats_show(struct kobject *kobj,
 	return length;
 }
 
+static DEFINE_MUTEX(asus_rpmh_stats_mutex);
+uint32_t asus_rpmh_counts[5] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
+static void asus_dump_rpmh_master_stats (void)
+{
+	int i = 0;
+	unsigned int size = 0;
+	struct msm_rpmh_master_stats *record = NULL;
+
+	asus_rpmh_counts[0] = apss_master_stats.counts;
+
+	mutex_lock(&asus_rpmh_stats_mutex);
+	for (i = 0; i < ARRAY_SIZE(rpmh_masters); i++) {
+		record = (struct msm_rpmh_master_stats *) smem_get_entry(
+					rpmh_masters[i].smem_id, &size,
+					rpmh_masters[i].pid, 0);
+
+		if(rpmh_masters[i].pid == PID_GPU)
+			break;
+
+		if (!IS_ERR_OR_NULL(record)){
+			asus_rpmh_counts[i+1] = record->counts;
+		}
+	}
+	mutex_unlock(&asus_rpmh_stats_mutex);
+
+	printk("RPM Mode:APSS=0x%x;MPSS=0x%x;ADSP=0x%x;CDSP=0x%x;SLPI=0x%x\n", asus_rpmh_counts[0],
+		asus_rpmh_counts[1], asus_rpmh_counts[2], asus_rpmh_counts[3], asus_rpmh_counts[4]);
+
+	return;
+}
+
 static inline void msm_rpmh_apss_master_stats_update(
 				struct msm_rpmh_profile_unit *profile_unit)
 {
@@ -275,12 +306,23 @@ static const struct of_device_id rpmh_master_table[] = {
 	{},
 };
 
+static int asus_rpmh_master_stats_resume (struct device *dev)
+{
+	asus_dump_rpmh_master_stats();
+	return 0;
+}
+
+static const struct dev_pm_ops asus_rpmh_master_stats_pm_ops = {
+	.resume = asus_rpmh_master_stats_resume,
+};
+
 static struct platform_driver msm_rpmh_master_stats_driver = {
 	.probe	= msm_rpmh_master_stats_probe,
 	.remove = msm_rpmh_master_stats_remove,
 	.driver = {
 		.name = "msm_rpmh_master_stats",
 		.of_match_table = rpmh_master_table,
+		.pm = &asus_rpmh_master_stats_pm_ops,
 	},
 };
 

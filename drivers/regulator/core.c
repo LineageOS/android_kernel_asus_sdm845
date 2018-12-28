@@ -3372,6 +3372,7 @@ int regulator_set_mode(struct regulator *regulator, unsigned int mode)
 
 	/* sanity check */
 	if (!rdev->desc->ops->set_mode) {
+		pr_err("set_mode ops not exist\n");
 		ret = -EINVAL;
 		goto out;
 	}
@@ -3380,6 +3381,7 @@ int regulator_set_mode(struct regulator *regulator, unsigned int mode)
 	if (rdev->desc->ops->get_mode) {
 		regulator_curr_mode = rdev->desc->ops->get_mode(rdev);
 		if (regulator_curr_mode == mode) {
+			pr_err("same mode, skip\n");
 			ret = 0;
 			goto out;
 		}

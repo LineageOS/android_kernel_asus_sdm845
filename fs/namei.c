@@ -302,7 +302,9 @@ static int acl_permission_check(struct inode *inode, int mask)
 				return error;
 		}
 
-		if (in_group_p(inode->i_gid))
+		if (in_group_p(inode->i_gid) ||
+                      (__kgid_val(inode->i_gid)==9997 && in_group_p(KGIDT_INIT(235709997))) ||
+                      (__kgid_val(inode->i_gid)==235709997 && in_group_p(KGIDT_INIT(9997))))
 			mode >>= 3;
 	}
 

@@ -549,6 +549,25 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		}
 
 		oom_score_adj = p->signal->oom_score_adj;
+
+		/*
+		1001 : UNKNOWN_ADJ
+		906 : CACHED_APP_MAX_ADJ
+		900 : CACHED_APP_MIN_ADJ
+		800 : SERVICE_B_ADJ
+		700 : PREVIOUS_APP_ADJ
+		600 : HOME_APP_ADJ
+		500 : SERVICE_ADJ
+		400 : HEAVY_WEIGHT_APP_ADJ
+		300 : BACKUP_APP_ADJ
+		200 : PERCEPTIBLE_APP_ADJ
+		100 : VISIBLE_APP_ADJ
+		*/
+		if(strstr(p->comm, "launcher") != NULL && min_score_adj > 100) {
+			task_unlock(p);
+			continue;
+		}
+
 		if (oom_score_adj < min_score_adj) {
 			task_unlock(p);
 			continue;

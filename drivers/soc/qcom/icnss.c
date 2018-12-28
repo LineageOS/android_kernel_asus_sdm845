@@ -52,6 +52,12 @@
 
 #include "wlan_firmware_service_v01.h"
 
+/* ASUS_BSP+++ for wlan firmware log */
+static int do_wlan_fw_log = 0;
+module_param(do_wlan_fw_log, int, S_IWUSR | S_IRUGO);
+MODULE_PARM_DESC(do_wlan_fw_log, "Is the wlan fw log flag");
+/* ASUS_BSP--- for wlan firmware log */
+
 #ifdef CONFIG_ICNSS_DEBUG
 unsigned long qmi_timeout = 10000;
 module_param(qmi_timeout, ulong, 0600);
@@ -876,6 +882,14 @@ out:
 	return ret;
 }
 
+/* ASUS_BSP+++ for wlan firmware log */
+int wcnss_get_fw_log_flag(void)
+{
+	pr_info("[wcnss]: do_wlan_fw_log=%d.\n", do_wlan_fw_log);
+	return do_wlan_fw_log;
+}
+EXPORT_SYMBOL(wcnss_get_fw_log_flag);
+/* ASUS_BSP--- for wlan firmware log */
 
 static int icnss_qmi_pin_connect_result_ind(void *msg, unsigned int msg_len)
 {
@@ -4512,6 +4526,62 @@ static int icnss_get_vbatt_info(struct icnss_priv *priv)
 	return 0;
 }
 
+static ssize_t fw_version_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	uint32_t major_spid = 0;
+	uint32_t minor_spid = 0;
+	uint32_t siid = 0;
+	uint32_t crmid = 0;
+	uint32_t fw_version = 0;
+	fw_version = penv->fw_version_info.fw_version;
+	if(fw_version == 0)
+		return snprintf(buf, PAGE_SIZE, "unknow");
+	else
+	{
+	  	major_spid = (fw_version & 0xf0000000) >> 28;
+	  	minor_spid = (fw_version & 0xf000000) >> 24;
+	  	siid = (fw_version & 0xf00000) >> 20;
+	  	crmid = fw_version & 0x7fff;	
+		return snprintf(buf, PAGE_SIZE, "%d.%d.%d.%d",major_spid,minor_spid,siid,crmid);	
+	}
+}
+
+static struct device_attribute fw_attrs =__ATTR(fw_version, S_IRUGO,fw_version_show,NULL);
+
+/*
+example:  wdi:127 hdd:127 sme:127 pe:127 wma:127 sys:127 qdf:127 sap:127 hdd_sap:127 bmi:127 cfg:127 epping:127 qdf_devices:127 txrx:127 htc:127 hif:127 sap_data:127 hdd_data:127 
+*/
+#define MAXWRITESIZE 512
+static char WifiDriverDebug[MAXWRITESIZE] = {0};
+static ssize_t wifi_driver_debug_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+    int bufflen = count>=MAXWRITESIZE?MAXWRITESIZE-1:count;
+    memcpy(WifiDriverDebug,buf,bufflen);
+    WifiDriverDebug[bufflen] = '\0';
+	return count;
+}
+
+static ssize_t wifi_driver_debug_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+    return snprintf(buf, PAGE_SIZE, "#modules: wdi hdd sme pe wma sys qdf sap hdd_sap bmi cfg epping qdf_devices txrx htc hif sap_data hdd_data#\n"
+                                    "#level: NONE(0) FATAL(BIT0) ERROR(BIT1) WARN(BIT2) INFO(BIT3) IH(BIT4) IM(BIT5) IL(BIT6) DEBUG(BIT7) ALL(255)#\n"
+                                    "#exapmle1: write \"0/1\" -> hdd:127 sme:127 sap:127 hdd_sap:127"
+                                    "#example2: write \"wdi:127 hdd:127\" #\n"
+                                    "%s\n",WifiDriverDebug);
+}
+
+static struct device_attribute driver_debug =__ATTR(do_wifi_driver_debug, S_IRUGO|S_IWUSR , wifi_driver_debug_show, wifi_driver_debug_store);
+
+char* icnss_get_wifi_driver_debug(void)
+{
+       return WifiDriverDebug;
+}
+EXPORT_SYMBOL(icnss_get_wifi_driver_debug);
+
+
 static int icnss_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -4707,6 +4777,9 @@ static int icnss_probe(struct platform_device *pdev)
 			     ret);
 
 	penv = priv;
+
+	ret = sysfs_create_file(&dev->kobj,&fw_attrs.attr);
+	ret = sysfs_create_file(&dev->kobj,&driver_debug.attr);
 
 	icnss_pr_info("Platform driver probed successfully\n");
 

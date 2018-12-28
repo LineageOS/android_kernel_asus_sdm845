@@ -2366,6 +2366,8 @@ EXPORT_SYMBOL_GPL(clk_list_frequency);
 static struct dentry *rootdir;
 static int inited = 0;
 static u32 debug_suspend;
+u32 asus_debug_suspend;
+
 static DEFINE_MUTEX(clk_debug_lock);
 static HLIST_HEAD(clk_debug_list);
 
@@ -3051,7 +3053,7 @@ EXPORT_SYMBOL_GPL(clk_debugfs_add_file);
  */
 void clock_debug_print_enabled(bool print_parent)
 {
-	if (likely(!debug_suspend))
+	if (likely(!(debug_suspend|asus_debug_suspend)))
 		return;
 
 	if (print_parent)

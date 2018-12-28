@@ -100,6 +100,8 @@
 
 #define FG_ADC_RR_PMI_DIE_TEMP_CTRL		0xB0
 #define FG_ADC_RR_PMI_DIE_TEMP_TRIGGER		0xB1
+#define FG_ADC_RR_PMI_DIE_TEMP_TRIGGER_CTL  BIT(0)
+
 #define FG_ADC_RR_PMI_DIE_TEMP_STS		0xB2
 #define FG_ADC_RR_PMI_DIE_TEMP_CFG		0xB3
 #define FG_ADC_RR_PMI_DIE_TEMP_LSB		0xB4
@@ -107,6 +109,7 @@
 
 #define FG_ADC_RR_CHARGER_TEMP_CTRL		0xB8
 #define FG_ADC_RR_CHARGER_TEMP_TRIGGER		0xB9
+#define FG_ADC_RR_CHARGER_TEMP_TRIGGER_CTL  BIT(0)
 #define FG_ADC_RR_CHARGER_TEMP_STS		0xBA
 #define FG_ADC_RR_CHARGER_TEMP_CFG		0xBB
 #define FG_ADC_RR_CHARGER_TEMP_LSB		0xBC
@@ -762,15 +765,15 @@ static int rradc_check_status_ready_with_retry(struct rradc_chip *chip,
 
 	while (((buf[0] & mask) != mask) &&
 			(retry_cnt < FG_RR_CONV_MAX_RETRY_CNT)) {
-		pr_debug("%s is not ready; nothing to read:0x%x\n",
-			rradc_chans[prop->channel].datasheet_name, buf[0]);
+		pr_info("%s is not ready; nothing to read:0x%x,retry_cnt=%d\n",
+			rradc_chans[prop->channel].datasheet_name, buf[0], retry_cnt);
 
 		if (((prop->channel == RR_ADC_CHG_TEMP) ||
 			(prop->channel == RR_ADC_SKIN_TEMP) ||
 			(prop->channel == RR_ADC_USBIN_I) ||
 			(prop->channel == RR_ADC_DIE_TEMP)) &&
 					((!rradc_is_usb_present(chip)))) {
-			pr_debug("USB not present for %d\n", prop->channel);
+			pr_info("USB not present for %d\n", prop->channel);
 			rc = -ENODATA;
 			break;
 		}
@@ -894,6 +897,26 @@ static int rradc_do_batt_id_conversion(struct rradc_chip *chip,
 	}
 
 	return ret;
+}
+
+void asus_set_trigger_ctl(struct rradc_chip *chip)
+{
+	int rc;
+	rc = rradc_masked_write(chip, FG_ADC_RR_PMI_DIE_TEMP_TRIGGER,
+				FG_ADC_RR_PMI_DIE_TEMP_TRIGGER_CTL,
+				FG_ADC_RR_PMI_DIE_TEMP_TRIGGER_CTL);
+	if(rc < 0){
+		pr_err("can not set FG_ADC_RR_PMI_DIE_TEMP_TRIGGER value!\n");
+	}
+
+	rc = rradc_masked_write(chip, FG_ADC_RR_CHARGER_TEMP_TRIGGER,
+				FG_ADC_RR_CHARGER_TEMP_TRIGGER_CTL,
+				FG_ADC_RR_CHARGER_TEMP_TRIGGER_CTL);
+	if(rc < 0){
+		pr_err("can not set FG_ADC_RR_CHARGER_TEMP_TRIGGER_CTL value!\n");
+	}
+
+	return ;
 }
 
 static int rradc_do_conversion(struct rradc_chip *chip,
@@ -1182,6 +1205,8 @@ static int rradc_probe(struct platform_device *pdev)
 	indio_dev->info = &rradc_info;
 	indio_dev->channels = chip->iio_chans;
 	indio_dev->num_channels = chip->nchannels;
+
+	asus_set_trigger_ctl(chip);
 
 	chip->usb_trig = power_supply_get_by_name("usb");
 	if (!chip->usb_trig)

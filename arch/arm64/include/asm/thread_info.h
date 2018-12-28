@@ -45,6 +45,9 @@ struct thread_info {
 	u64			ttbr0;		/* saved TTBR0_EL1 */
 #endif
 	int			preempt_count;	/* 0 => preemptable, <0 => bug */
+	struct mutex* pWaitingMutex;//ASUS_BSP + [thomas]Add for slow log
+	struct completion *pWaitingCompletion;//ASUS_BSP + [thomas]Add for slow log
+	struct rt_mutex* pWaitingRTMutex;//ASUS_BSP + [thomas]Add for slow log
 };
 
 #define INIT_THREAD_INFO(tsk)						\

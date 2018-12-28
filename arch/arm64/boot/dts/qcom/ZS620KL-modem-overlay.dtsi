@@ -1,0 +1,11 @@
+// ASUS_BSP efs size 5M +++
+&soc {
+	qcom,rmtfs_sharedmem@0 {
+		compatible = "qcom,sharedmem-uio";
+		reg = <0x0 0x500000>;
+		reg-names = "rmtfs";
+		qcom,client-id = <0x00000001>;
+		qcom,guard-memory;
+	};
+};
+// ASUS_BSP efs size 5M ---

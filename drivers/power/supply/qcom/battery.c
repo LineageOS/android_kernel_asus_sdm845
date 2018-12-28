@@ -611,6 +611,8 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 	if (client == NULL)
 		icl_ua = INT_MAX;
 
+	printk("[SMB][CHG] %s: client = %s, icl_ua = %d\n", __func__, (client != NULL) ? client : "NULL", icl_ua);
+
 	/*
 	 * Disable parallel for new ICL vote - the call to split_settled will
 	 * ensure that all the input current limit gets assigned to the main

@@ -444,7 +444,7 @@ config TASKSTATS
 	bool "Export task/process statistics through netlink"
 	depends on NET
 	depends on MULTIUSER
-	default n
+	default y
 	help
 	  Export selected statistics for tasks/processes through the
 	  generic netlink interface. Unlike BSD process accounting, the

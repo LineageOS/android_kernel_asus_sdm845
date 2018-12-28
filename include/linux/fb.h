@@ -513,6 +513,7 @@ struct fb_info {
 	};
 	unsigned long screen_size;	/* Amount of ioremapped VRAM or 0 */ 
 	void *pseudo_palette;		/* Fake palette of 16 colors */ 
+	u32 hdr_mode;			/* Hardware state hdr_mode enable/disable */
 #define FBINFO_STATE_RUNNING	0
 #define FBINFO_STATE_SUSPENDED	1
 	u32 state;			/* Hardware state i.e suspend */

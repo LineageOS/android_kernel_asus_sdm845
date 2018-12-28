@@ -32,4 +32,10 @@ int cam_flash_prepare(struct cam_flash_ctrl *flash_ctrl,
 void cam_flash_shutdown(struct cam_flash_ctrl *flash_ctrl);
 int cam_flash_stop_dev(struct cam_flash_ctrl *flash_ctrl);
 int cam_flash_release_dev(struct cam_flash_ctrl *fctrl);
+
+//ASUS_BSP +++ Zhengwei "porting flash"
+int cam_flash_low(struct cam_flash_ctrl *flash_ctrl,struct cam_flash_frame_setting *flash_data);
+int cam_flash_high(struct cam_flash_ctrl *flash_ctrl,struct cam_flash_frame_setting *flash_data);
+//ASUS_BSP --- Zhengwei "porting flash"
+
 #endif /*_CAM_FLASH_CORE_H_*/

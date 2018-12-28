@@ -18,6 +18,9 @@
 #include "cam_eeprom_soc.h"
 #include "cam_debug_util.h"
 
+#include "asus_cam_sensor_util.h"
+extern void eeprom_dump_create(struct cam_eeprom_ctrl_t * e_ctrl); //ASUS_BSP Zhengwei "porting eeprom
+extern int get_camera_id_for_submodule(enum sensor_sub_module sub_module, uint32_t index, uint32_t* camera_id);
 /**
  * cam_eeprom_read_memory() - read map data into buffer
  * @e_ctrl:     eeprom control struct
@@ -705,7 +708,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	struct cam_eeprom_soc_private  *soc_private =
 		(struct cam_eeprom_soc_private *)e_ctrl->soc_info.soc_private;
 	struct cam_sensor_power_ctrl_t *power_info = &soc_private->power_info;
-
+	uint32_t camera_id;
 	ioctl_ctrl = (struct cam_control *)arg;
 
 	if (copy_from_user(&dev_config, (void __user *) ioctl_ctrl->handle,
@@ -761,23 +764,40 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			goto error;
 		}
 
-		rc = cam_eeprom_power_up(e_ctrl,
-			&soc_private->power_info);
-		if (rc) {
-			CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
-			goto memdata_free;
+		if(get_camera_id_for_submodule(SUB_MODULE_EEPROM,e_ctrl->soc_info.index,&camera_id) != 0)
+		{
+			pr_err("can not find related camera id for eeprom index %d, use its index as camera id",e_ctrl->soc_info.index);
+			camera_id = e_ctrl->soc_info.index;
+		}
+		if(camera_id == CAMERA_0)
+		{
+			rc = cam_eeprom_power_up(e_ctrl,
+				&soc_private->power_info);
+			if (rc) {
+				CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
+				goto memdata_free;
+			}
 		}
 
 		e_ctrl->cam_eeprom_state = CAM_EEPROM_CONFIG;
-		rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
-		if (rc) {
-			CAM_ERR(CAM_EEPROM,
-				"read_eeprom_memory failed");
-			goto power_down;
+
+		if(camera_id == CAMERA_0)
+		{
+			rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
+			if (rc) {
+				CAM_ERR(CAM_EEPROM,
+					"read_eeprom_memory failed");
+				goto power_down;
+			}
 		}
 
+		CAM_INFO(CAM_EEPROM,"EEPROM INIT done");
+		eeprom_dump_create(e_ctrl);//ASUS_BSP Zhengwei "porting eeprom"
 		rc = cam_eeprom_get_cal_data(e_ctrl, csl_packet);
-		rc = cam_eeprom_power_down(e_ctrl);
+		if(camera_id == CAMERA_0)
+		{
+			rc = cam_eeprom_power_down(e_ctrl);
+		}
 		e_ctrl->cam_eeprom_state = CAM_EEPROM_ACQUIRE;
 		vfree(e_ctrl->cal_data.mapdata);
 		vfree(e_ctrl->cal_data.map);

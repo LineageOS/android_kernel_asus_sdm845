@@ -42,6 +42,12 @@
 #define MAX_NAME_SIZE	64
 
 #define DSI_CLOCK_BITRATE_RADIX 10
+//ASUS_BSP add to export display panel id to touch driver +++
+char* dsi_panel_id = NULL;
+EXPORT_SYMBOL(dsi_panel_id);
+//ASUS_BSP add to export display panel id to touch driver ---
+
+struct dsi_display *g_asus_display = NULL;
 
 static DEFINE_MUTEX(dsi_display_list_lock);
 static LIST_HEAD(dsi_display_list);
@@ -150,13 +156,18 @@ int dsi_display_set_backlight(void *display, u32 bl_lvl)
 	panel = dsi_display->panel;
 
 	mutex_lock(&panel->panel_lock);
-	if (!dsi_panel_initialized(panel)) {
-		rc = -EINVAL;
-		goto error;
-	}
+	//~ if (!dsi_panel_initialized(panel)) {
+		//~ rc = -EINVAL;
+		//~ goto error;
+	//~ }
 
 	panel->bl_config.bl_level = bl_lvl;
-
+	if (!dsi_panel_initialized(panel)) {
+		pr_debug("[%s] set backlight before panel initialized, caching value: %d\n",dsi_display->name, bl_lvl);
+		rc = 0;
+		goto error;
+	}
+	
 	/* scale backlight */
 	bl_scale = panel->bl_config.bl_scale;
 	bl_temp = bl_lvl * bl_scale / MAX_BL_SCALE_LEVEL;
@@ -1972,6 +1983,7 @@ static void dsi_display_parse_cmdline_topology(struct dsi_display *display,
 		boot_str = dsi_display_primary;
 	else
 		boot_str = dsi_display_secondary;
+	dsi_panel_id = dsi_display_primary; //ASUS_BSP add to export display panel id to touch driver
 
 	str = strnstr(boot_str, ":config", strlen(boot_str));
 	if (!str)
@@ -2847,13 +2859,31 @@ static ssize_t dsi_host_transfer(struct mipi_dsi_host *host,
 		int ctrl_idx = (msg->flags & MIPI_DSI_MSG_UNICAST) ?
 				msg->ctrl : 0;
 
-		rc = dsi_ctrl_cmd_transfer(display->ctrl[ctrl_idx].ctrl, msg,
-					  DSI_CTRL_CMD_FETCH_MEMORY);
-		if (rc) {
-			pr_err("[%s] cmd transfer failed, rc=%d\n",
-			       display->name, rc);
-			goto error_disable_cmd_engine;
+//ASUS BSP FIX read cmd error +++
+		if(msg->type == 0x06)//MIPI_DSI_DCS_READ
+		{
+			rc = dsi_ctrl_cmd_transfer(display->ctrl[ctrl_idx].ctrl, msg,
+					  DSI_CTRL_CMD_READ|DSI_CTRL_CMD_FETCH_MEMORY);
+			if (rc <= 0)
+			{
+				pr_err("[%s] DSI_CTRL_CMD_READ cmd transfer failed, rc=%d\n",
+					   display->name, rc);
+				goto error_disable_cmd_engine;
+
+			}
 		}
+//ASUS BSP FIX read cmd error ---
+		else
+		{
+			rc = dsi_ctrl_cmd_transfer(display->ctrl[ctrl_idx].ctrl, msg,
+					  DSI_CTRL_CMD_FETCH_MEMORY);
+			if (rc) {
+				pr_err("[%s] cmd transfer failed, rc=%d\n",
+					   display->name, rc);
+				goto error_disable_cmd_engine;
+			}
+		}
+
 	}
 
 error_disable_cmd_engine:
@@ -4618,6 +4648,12 @@ static int dsi_display_bind(struct device *dev,
 					display->name, rc);
 			goto error;
 		}
+		/**
+		* if backlight level was set via backlight sysfs before the
+		* panel init, honor that value now
+		*/
+		if (display->panel->bl_config.bl_level)
+			dsi_display_set_backlight(display,display->panel->bl_config.bl_level); 
 	}
 
 	/* register te irq handler */
@@ -6263,12 +6299,12 @@ int dsi_display_config_ctrl_for_cont_splash(struct dsi_display *display)
 error_out:
 	return rc;
 }
-
+extern struct dsi_panel *g_asus_panel;
 int dsi_display_enable(struct dsi_display *display)
 {
 	int rc = 0;
 	struct dsi_display_mode *mode;
-
+	g_asus_display = display;
 	if (!display || !display->panel) {
 		pr_err("Invalid params\n");
 		return -EINVAL;
@@ -6293,7 +6329,7 @@ int dsi_display_enable(struct dsi_display *display)
 				rc);
 			return -EINVAL;
 		}
-
+		g_asus_panel = display->panel;
 		display->panel->panel_initialized = true;
 		pr_debug("cont splash enabled, display enable not required\n");
 		return 0;
@@ -6317,6 +6353,12 @@ int dsi_display_enable(struct dsi_display *display)
 			       display->name, rc);
 			goto error;
 		}
+		/**
+		* if backlight level was set via backlight sysfs before the
+		* panel init, honor that value now
+		*/
+		if (display->panel->bl_config.bl_level)
+			dsi_display_set_backlight(display,display->panel->bl_config.bl_level); 
 	}
 
 	if (mode->priv_info && mode->priv_info->dsc_enabled) {

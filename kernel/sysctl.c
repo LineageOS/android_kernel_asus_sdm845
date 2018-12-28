@@ -362,14 +362,14 @@ static struct ctl_table kern_table[] = {
 		.procname	= "sched_upmigrate",
 		.data		= &sysctl_sched_capacity_margin,
 		.maxlen		= sizeof(unsigned int),
-		.mode		= 0644,
+		.mode		= 0666,
 		.proc_handler	= sched_updown_migrate_handler,
 	},
 	{
 		.procname	= "sched_downmigrate",
 		.data		= &sysctl_sched_capacity_margin_down,
 		.maxlen		= sizeof(unsigned int),
-		.mode		= 0644,
+		.mode		= 0666,
 		.proc_handler	= sched_updown_migrate_handler,
 	},
 #ifdef CONFIG_SCHED_DEBUG

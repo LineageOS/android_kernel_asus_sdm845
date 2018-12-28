@@ -2977,7 +2977,7 @@ static int gsi_bind(struct usb_configuration *c, struct usb_function *f)
 		 */
 		if (gsi->rndis_id == RNDIS_ID_UNKNOWN)
 			gsi->rndis_id = MISC_RNDIS_OVER_ETHERNET;
-
+		gsi->rndis_id = WIRELESS_CONTROLLER_REMOTE_NDIS;
 		switch (gsi->rndis_id) {
 		default:
 			/* fall throug */

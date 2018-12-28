@@ -684,6 +684,11 @@
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
 
+#define SX9310_KEY_0			0x2f0
+#define SX9310_KEY_1			0x2f1
+#define SX9310_KEY_2			0x2f2
+#define SX9310_KEY_COMB			0x2f3
+
 /* Custom fingerprint gestures keys */
 #define KEY_FP_GESTURE_UP		0x2e8
 #define KEY_FP_GESTURE_DOWN		0x2e9

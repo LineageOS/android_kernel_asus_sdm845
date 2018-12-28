@@ -669,7 +669,11 @@ static void pp_iface_stat_header(struct seq_file *m)
 		 "rx_other_bytes rx_other_packets "
 		 "tx_tcp_bytes tx_tcp_packets "
 		 "tx_udp_bytes tx_udp_packets "
-		 "tx_other_bytes tx_other_packets\n"
+		 "tx_other_bytes tx_other_packets "
+		 //ASUS_BSP Johnny +++[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
+		 "rx_dns_bytes rx_dns_packets "
+		 "tx_dns_bytes tx_dns_packets\n"
+		 //ASUS_BSP Johnny ---[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
 	);
 }
 
@@ -680,7 +684,7 @@ static void pp_iface_stat_line(struct seq_file *m,
 	int cnt_set = 0;   /* We only use one set for the device */
 	cnts = &iface_entry->totals_via_skb;
 	seq_printf(m, "%s %llu %llu %llu %llu %llu %llu %llu %llu "
-		   "%llu %llu %llu %llu %llu %llu %llu %llu\n",
+		   "%llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu\n",
 		   iface_entry->ifname,
 		   dc_sum_bytes(cnts, cnt_set, IFS_RX),
 		   dc_sum_packets(cnts, cnt_set, IFS_RX),
@@ -697,7 +701,13 @@ static void pp_iface_stat_line(struct seq_file *m,
 		   cnts->bpc[cnt_set][IFS_TX][IFS_UDP].bytes,
 		   cnts->bpc[cnt_set][IFS_TX][IFS_UDP].packets,
 		   cnts->bpc[cnt_set][IFS_TX][IFS_PROTO_OTHER].bytes,
-		   cnts->bpc[cnt_set][IFS_TX][IFS_PROTO_OTHER].packets);
+		   cnts->bpc[cnt_set][IFS_TX][IFS_PROTO_OTHER].packets,
+		   //ASUS_BSP Johnny +++[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
+		   cnts->bpc[cnt_set][IFS_RX][IFS_DNS].bytes,
+		   cnts->bpc[cnt_set][IFS_RX][IFS_DNS].packets,
+		   cnts->bpc[cnt_set][IFS_TX][IFS_DNS].bytes,
+		   cnts->bpc[cnt_set][IFS_TX][IFS_DNS].packets);
+		   //ASUS_BSP Johnny ---[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
 }
 
 struct proc_iface_stat_fmt_info {
@@ -1099,6 +1109,15 @@ static int ipx_proto(const struct sk_buff *skb,
 	return tproto;
 }
 
+//ASUS_BSP Johnny +++[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
+static void
+data_counters_update_dns(struct data_counters *dc, int set,
+                enum ifs_tx_rx direction, int proto, int bytes)
+{
+        dc_add_byte_packets(dc, set, direction, IFS_DNS, bytes, 1);
+}
+//ASUS_BSP Johnny ---[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
+
 static void
 data_counters_update(struct data_counters *dc, int set,
 		     enum ifs_tx_rx direction, int proto, int bytes)
@@ -1213,7 +1232,11 @@ static void iface_stat_update_from_skb(const struct sk_buff *skb,
 	enum ifs_tx_rx direction;
 	int bytes = skb->len;
 	int proto;
-
+	//ASUS_BSP Johnny +++[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
+	unsigned short uhDnsPort = htons(53); //Monitor port 53 for DNS
+	struct iphdr *iph;
+	struct udphdr *udph;
+	//ASUS_BSP Johnny ---[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
 	get_dev_and_dir(skb, par, &direction, &el_dev);
 	proto = ipx_proto(skb, par);
 	MT_DEBUG("qtaguid[%d]: iface_stat: %s(%s): "
@@ -1232,6 +1255,15 @@ static void iface_stat_update_from_skb(const struct sk_buff *skb,
 
 	IF_DEBUG("qtaguid[%d]: %s(%s): entry=%p\n", par->hooknum,  __func__,
 		 el_dev->name, entry);
+	//ASUS_BSP Johnny +++[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
+	iph = ip_hdr(skb);
+	if (proto == IPPROTO_UDP) {
+		udph = (struct udphdr *)(skb->data + iph->ihl*4);
+		if (udph->dest == uhDnsPort || udph->source == uhDnsPort) { //Calculate DNS package
+			data_counters_update_dns(&entry->totals_via_skb, 0, direction, proto, bytes);
+		}
+	}
+	//ASUS_BSP Johnny ---[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
 
 	data_counters_update(&entry->totals_via_skb, 0, direction, proto,
 			     bytes);

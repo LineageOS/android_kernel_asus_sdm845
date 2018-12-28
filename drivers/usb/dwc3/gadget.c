@@ -3134,7 +3134,7 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 	}
 
 	dbg_event(0xFF, "BUS RESET", 0);
-	dev_dbg(dwc->dev, "Notify OTG from %s\n", __func__);
+	dev_info(dwc->dev, "[USB]Notify OTG from %s\n", __func__);
 	dwc->b_suspend = false;
 	dwc3_notify_event(dwc, DWC3_CONTROLLER_NOTIFY_OTG_EVENT, 0);
 

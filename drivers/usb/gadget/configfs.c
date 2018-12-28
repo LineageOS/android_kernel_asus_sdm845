@@ -1503,6 +1503,7 @@ static int android_setup(struct usb_gadget *gadget,
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (!gi->connected) {
 		gi->connected = 1;
+		printk("[USB] gi->connected = 1 \n");
 		schedule_work(&gi->work);
 	}
 	spin_unlock_irqrestore(&cdev->lock, flags);

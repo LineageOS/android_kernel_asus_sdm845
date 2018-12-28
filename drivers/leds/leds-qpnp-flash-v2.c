@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#define pr_fmt(fmt)	"flashv2: %s: " fmt, __func__
+#define pr_fmt(fmt)	"FLASH-QPNP: %s: " fmt, __func__
 
 #include <linux/module.h>
 #include <linux/init.h>
@@ -323,6 +323,8 @@ struct qpnp_flash_led {
 	bool				trigger_lmh;
 	bool				trigger_chgr;
 };
+
+extern void asus_flash_set_led_fault(int error_value);//ASUS_BSP Zhengwei "check fault value in ATD"
 
 static int thermal_derate_slow_table[] = {
 	128, 256, 512, 1024, 2048, 4096, 8192, 314592,
@@ -1258,6 +1260,10 @@ static void qpnp_flash_led_node_set(struct flash_node_data *fnode, int value)
 	fnode->cdev.brightness = prgm_current_ma;
 	fnode->current_reg_val = get_current_reg_code(prgm_current_ma,
 					fnode->ires_ua);
+
+	pr_info("fnode[%d], type %s, res idx %d, ires_ua %d uA, current %d mA, reg val %d\n",
+			fnode->id,fnode->type == FLASH_LED_TYPE_FLASH?"FLASH":"TORCH",fnode->ires_idx,fnode->ires_ua,fnode->current_ma,fnode->current_reg_val);
+
 	if (prgm_current_ma)
 		fnode->led_on = true;
 
@@ -1490,7 +1496,15 @@ static int qpnp_flash_led_switch_set(struct flash_switch_data *snode, bool on)
 	for (i = 0; i < led->num_fnodes; i++)
 		if (led->fnode[i].led_on &&
 				snode->led_mask & BIT(led->fnode[i].id))
+		{
 			val |= led->fnode[i].ires_idx << (led->fnode[i].id * 2);
+			pr_info("fnode[%d] id %d, type %s, res idx %d, ires_ua %d uA, current %d mA, reg val %d\n",
+					i,led->fnode[i].id,
+					led->fnode[i].type == FLASH_LED_TYPE_FLASH?"FLASH":"TORCH",
+					led->fnode[i].ires_idx,led->fnode[i].ires_ua,
+					led->fnode[i].current_ma,led->fnode[i].current_reg_val
+					);
+		}
 
 	rc = qpnp_flash_led_masked_write(led, FLASH_LED_REG_IRES(led->base),
 						FLASH_LED_CURRENT_MASK, val);
@@ -1733,6 +1747,7 @@ static void qpnp_flash_led_brightness_set(struct led_classdev *led_cdev,
 
 	if (!led) {
 		pr_err("Failed to get flash driver data\n");
+		asus_flash_set_led_fault(-EINVAL);//ASUS_BSP Zhengwei "check fault value in ATD"
 		return;
 	}
 
@@ -1740,7 +1755,10 @@ static void qpnp_flash_led_brightness_set(struct led_classdev *led_cdev,
 	if (snode) {
 		rc = qpnp_flash_led_switch_set(snode, value > 0);
 		if (rc < 0)
+		{
 			pr_err("Failed to set flash LED switch rc=%d\n", rc);
+			asus_flash_set_led_fault(rc);//ASUS_BSP Zhengwei "check fault value in ATD"
+		}
 	} else if (fnode) {
 		qpnp_flash_led_node_set(fnode, value);
 	}
@@ -1840,8 +1858,11 @@ static irqreturn_t qpnp_flash_led_irq_handler(int irq, void *_led)
 		}
 
 		if (led_status1)
+		{
+			asus_flash_set_led_fault(led_status1);//ASUS_BSP Zhengwei "check fault value in ATD"
 			pr_emerg("led short/open fault detected! led_status1=%x\n",
 				led_status1);
+		}
 
 		if (led_status2 & FLASH_LED_VPH_DROOP_FAULT_MASK)
 			pr_emerg("led vph_droop fault detected!\n");
@@ -2642,6 +2663,8 @@ static int qpnp_flash_led_probe(struct platform_device *pdev)
 	unsigned int base;
 	int rc, i = 0, j = 0;
 
+	pr_info("probe start\n");
+
 	node = pdev->dev.of_node;
 	if (!node) {
 		pr_err("No flash LED nodes defined\n");
@@ -2810,6 +2833,8 @@ static int qpnp_flash_led_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, led);
 
+	pr_info("probe done\n");
+
 	return 0;
 
 sysfs_fail:
@@ -2834,6 +2859,7 @@ error_led_register:
 	while (i > 0)
 		led_classdev_unregister(&led->fnode[--i].cdev);
 
+	pr_err("probe failed!\n");
 	return rc;
 }
 

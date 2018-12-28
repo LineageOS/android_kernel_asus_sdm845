@@ -27,9 +27,13 @@
 #include "smb-reg.h"
 #include "smb-lib.h"
 #include "storm-watch.h"
+#include "asus_charger.h"
 #include <linux/pmic-voter.h>
 
 #define SMB2_DEFAULT_WPWR_UW	8000000
+
+extern struct wakeup_source adc_check_lock;
+extern struct wakeup_source UsbCable_Lock;
 
 static struct smb_params v1_params = {
 	.fcc			= {
@@ -154,29 +158,6 @@ static struct smb_params pm660_params = {
 		.max_u	= 1600,
 		.set_proc = smblib_set_chg_freq,
 	},
-};
-
-struct smb_dt_props {
-	int	usb_icl_ua;
-	int	dc_icl_ua;
-	int	boost_threshold_ua;
-	int	wipower_max_uw;
-	int	min_freq_khz;
-	int	max_freq_khz;
-	struct	device_node *revid_dev_node;
-	int	float_option;
-	int	chg_inhibit_thr_mv;
-	bool	no_battery;
-	bool	hvdcp_disable;
-	bool	auto_recharge_soc;
-	int	wd_bark_time;
-};
-
-struct smb2 {
-	struct smb_charger	chg;
-	struct dentry		*dfs_root;
-	struct smb_dt_props	dt;
-	bool			bad_part;
 };
 
 static int __debug_mask;
@@ -398,6 +379,10 @@ static int smb2_usb_get_prop(struct power_supply *psy,
 			val->intval = 1;
 		if (chg->real_charger_type == POWER_SUPPLY_TYPE_UNKNOWN)
 			val->intval = 0;
+		if (val->intval == 0 && chg->asus_chg->asus_adapter_detecting_flag){
+			val->intval = 1;		
+			CHG_DBG("force reporting online due to under AC detecting flow\n");
+		}
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		rc = smblib_get_prop_usb_voltage_max(chg, val);
@@ -562,6 +547,9 @@ static int smb2_usb_set_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_SDP_CURRENT_MAX:
 		rc = smblib_set_prop_sdp_current_max(chg, val);
+		break;
+	case POWER_SUPPLY_PROP_PD_QC_STATE:
+		rc = asus_set_prop_pd_qc_state(chg, val);
 		break;
 	default:
 		pr_err("set prop %d is not supported\n", psp);
@@ -1001,6 +989,7 @@ static enum power_supply_property smb2_batt_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
+	POWER_SUPPLY_PROP_STATUS_QCOM,
 };
 
 static int smb2_batt_get_prop(struct power_supply *psy,
@@ -1010,10 +999,19 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	struct smb_charger *chg = power_supply_get_drvdata(psy);
 	int rc = 0;
 	union power_supply_propval pval = {0, };
+	union power_supply_propval asusval = {0, };
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-		rc = smblib_get_prop_batt_status(chg, val);
+		rc = smblib_get_prop_batt_status(chg, val,&asusval);
+		val->intval = asusval.intval;
+		if(chg->asus_chg->qc_stat_registed)
+			asus_set_qc_stat(chg, &asusval);
+		break;
+	case POWER_SUPPLY_PROP_STATUS_QCOM:
+		rc = smblib_get_prop_batt_status(chg, val,&asusval);
+		if(chg->asus_chg->qc_stat_registed)
+			asus_set_qc_stat(chg, &asusval);
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		rc = smblib_get_prop_batt_health(chg, val);
@@ -1153,6 +1151,8 @@ static int smb2_batt_set_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		chg->batt_profile_fv_uv = val->intval;
+		chg->asus_chg->asus_tb.fv_cfg = val->intval;
+        asus_update_rechg_volt_by_fv(chg, val->intval);
 		vote(chg->fv_votable, BATT_PROFILE_VOTER, true, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_QNOVO_ENABLE:
@@ -1923,7 +1923,7 @@ static int smb2_chg_config_init(struct smb2 *chip)
 			chg->wa_flags |= QC_CHARGER_DETECTION_WA_BIT;
 		if (pmic_rev_id->rev4 == PMI8998_V2P0_REV4) /* PMI rev 2.0 */
 			chg->wa_flags |= TYPEC_CC2_REMOVAL_WA_BIT;
-		chg->chg_freq.freq_5V		= 600;
+		chg->chg_freq.freq_5V		= 1200;// modify due to RF team request
 		chg->chg_freq.freq_6V_8V	= 800;
 		chg->chg_freq.freq_9V		= 1000;
 		chg->chg_freq.freq_12V		= 1200;
@@ -2328,6 +2328,33 @@ static void smb2_create_debugfs(struct smb2 *chip)
 
 #endif
 
+struct smb2 *chip_dev = NULL;
+
+void set_otg_current_to_1p5A_needrestore(int flag)
+{
+	struct smb_charger *chg ;
+	int rc;
+	if(chip_dev == NULL)
+	{
+		return;
+	}
+
+	chg = &chip_dev->chg;
+	cancel_delayed_work(&chg->asus_chg->asus_handle_otg_insertion_work);//cancel delay work
+	//ASUS BSP ADD for 1.5A otg output at begin ---
+	rc = smblib_masked_write(chg, OTG_CURRENT_LIMIT_CFG_REG,
+					OTG_CURRENT_LIMIT_MASK, 0x05);// init 1.5A 
+	if (rc < 0) {
+			dev_err(chg->dev, "%s Couldn't set otg icl rc=%d\n",__func__, rc);
+	}
+	if(flag == 1)
+	{
+		schedule_delayed_work(&chg->asus_chg->asus_handle_otg_insertion_work,msecs_to_jiffies(10000));//schedule delay work
+	}
+	//ASUS BSP ADD for 1.5A otg output at begin --
+}
+EXPORT_SYMBOL(set_otg_current_to_1p5A_needrestore);
+
 static int smb2_probe(struct platform_device *pdev)
 {
 	struct smb2 *chip;
@@ -2446,6 +2473,11 @@ static int smb2_probe(struct platform_device *pdev)
 		goto cleanup;
 	}
 
+//ASUS_BSP guochang_qiu add asus porting+++
+	chip_dev = chip;
+	asus_charger_porting(chip, pdev);
+//ASUS_BSP guochang_qiu add asus porting---
+
 	rc = smb2_determine_initial_status(chip);
 	if (rc < 0) {
 		pr_err("Couldn't determine initial status rc=%d\n",
@@ -2537,6 +2569,8 @@ static int smb2_remove(struct platform_device *pdev)
 	regulator_unregister(chg->vbus_vreg->rdev);
 
 	platform_set_drvdata(pdev, NULL);
+	wakeup_source_trash(&adc_check_lock);
+	wakeup_source_trash(&UsbCable_Lock);
 	return 0;
 }
 
@@ -2567,11 +2601,17 @@ static const struct of_device_id match_table[] = {
 	{ },
 };
 
+static const struct dev_pm_ops asus_smbchg_pm_ops = {
+	.suspend = asus_smbchg_suspend,
+	.resume = asus_smbchg_resume,
+};
+
 static struct platform_driver smb2_driver = {
 	.driver		= {
 		.name		= "qcom,qpnp-smb2",
 		.owner		= THIS_MODULE,
 		.of_match_table	= match_table,
+		.pm = &asus_smbchg_pm_ops,
 	},
 	.probe		= smb2_probe,
 	.remove		= smb2_remove,

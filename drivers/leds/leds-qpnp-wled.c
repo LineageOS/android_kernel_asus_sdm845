@@ -238,6 +238,8 @@
 #define QPNP_WLED_AVDD_MV_TO_REG(val) \
 		((val - QPNP_WLED_AVDD_MIN_MV) / QPNP_WLED_AVDD_STEP_MV)
 
+int g_asus_last_wled_level = 0;
+
 /* output feedback mode */
 enum qpnp_wled_fdbk_op {
 	QPNP_WLED_FDBK_AUTO,
@@ -580,6 +582,9 @@ static int qpnp_wled_set_level(struct qpnp_wled *wled, int level)
 	if (level > 0 && level < low_limit)
 		level = low_limit;
 
+	if (((g_asus_last_wled_level == 0 || g_asus_last_wled_level == 4095) && level != 4095) || level == 4095){
+		printk("[WLED]set qpnp_wled_set_level %d\n",level);
+	}
 	/* set brightness registers */
 	for (i = 0; i < wled->max_strings; i++) {
 		reg = level & QPNP_WLED_BRIGHT_LSB_MASK;
@@ -730,9 +735,10 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 			QPNP_WLED_MODULE_EN_REG(base_addr),
 			QPNP_WLED_MODULE_EN_MASK,
 			state << QPNP_WLED_MODULE_EN_SHIFT);
-	if (rc < 0)
+	if (rc < 0){
+		dev_err(&wled->pdev->dev, "[Display]wled masked write reg failed\n");
 		return rc;
-
+	}
 	/*
 	 * Wait for at least 10ms before enabling OVP fault interrupt after
 	 * enabling the module so that soft start is completed. Also, this
@@ -740,6 +746,7 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 	 * OVP interrupt disabled when the module is disabled.
 	 */
 	if (state) {
+		dev_err(&wled->pdev->dev, "[Display]wled turn on\n");
 		usleep_range(QPNP_WLED_SOFT_START_DLY_US,
 				QPNP_WLED_SOFT_START_DLY_US + 1000);
 		rc = qpnp_wled_psm_config(wled, false);
@@ -751,8 +758,9 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 			wled->ovp_irq_disabled = false;
 		}
 	} else {
+		dev_err(&wled->pdev->dev, "[Display]wled turn off\n");
 		if (wled->ovp_irq > 0 && !wled->ovp_irq_disabled) {
-			disable_irq(wled->ovp_irq);
+			disable_irq_nosync(wled->ovp_irq);//ASUS BSP fix dead lock ,ovp irq will try to hold mutex_lock
 			wled->ovp_irq_disabled = true;
 		}
 
@@ -1167,6 +1175,7 @@ static void qpnp_wled_work(struct work_struct *work)
 	}
 
 	wled->prev_state = !!level;
+	g_asus_last_wled_level = level;
 unlock_mutex:
 	mutex_unlock(&wled->lock);
 }
@@ -1570,30 +1579,33 @@ static irqreturn_t qpnp_wled_ovp_irq_handler(int irq, void *_wled)
 	}
 
 	if (fault_sts & (QPNP_WLED_OVP_FAULT_BIT | QPNP_WLED_ILIM_FAULT_BIT))
-		pr_err("WLED OVP fault detected, int_sts=%x fault_sts= %x\n",
+		printk_ratelimited("WLED OVP fault detected, int_sts=%x fault_sts= %x\n",
 			int_sts, fault_sts);
 
 	if (fault_sts & QPNP_WLED_OVP_FAULT_BIT) {
 		if (wled->auto_calib_enabled && !wled->auto_calib_done) {
 			if (qpnp_wled_auto_cal_required(wled)) {
 				mutex_lock(&wled->lock);
-				if (wled->ovp_irq > 0 &&
-						!wled->ovp_irq_disabled) {
-					disable_irq_nosync(wled->ovp_irq);
-					wled->ovp_irq_disabled = true;
-				}
+				if(!wled->ovp_irq_disabled)//don't do auto-calibration after disable ovp
+				{
+					if (wled->ovp_irq > 0 &&
+							!wled->ovp_irq_disabled) {
+						disable_irq_nosync(wled->ovp_irq);
+						wled->ovp_irq_disabled = true;
+					}
 
-				rc = wled_auto_calibrate(wled);
-				if (rc < 0)
-					pr_err("Failed auto-calibration rc=%d\n",
-								rc);
-				else
-					wled->auto_calib_done = true;
+					rc = wled_auto_calibrate(wled);
+					if (rc < 0)
+						pr_err("Failed auto-calibration rc=%d\n",
+									rc);
+					else
+						wled->auto_calib_done = true;
 
-				if (wled->ovp_irq > 0 &&
-						wled->ovp_irq_disabled) {
-					enable_irq(wled->ovp_irq);
-					wled->ovp_irq_disabled = false;
+					if (wled->ovp_irq > 0 &&
+							wled->ovp_irq_disabled) {
+						enable_irq(wled->ovp_irq);
+						wled->ovp_irq_disabled = false;
+					}
 				}
 				mutex_unlock(&wled->lock);
 			}
@@ -2675,6 +2687,24 @@ static int qpnp_wled_parse_dt(struct qpnp_wled *wled)
 	return 0;
 }
 
+//ASUS BSP ADD TO REENABLE WELD +++
+static void asus_fix_prev_state(struct qpnp_wled *wled,u16 base_addr)
+{
+	int rc;
+	u8 reg;
+
+	rc = qpnp_wled_read_reg(wled,QPNP_WLED_MODULE_EN_REG(base_addr),&reg);
+
+	if(rc < 0 || (reg&QPNP_WLED_MODULE_EN_MASK))//default & if alread enableed
+	{
+		printk("[WLED] fix wled->prev_state to true\n");
+		mutex_lock(&wled->lock);
+		wled->prev_state = true;
+		mutex_unlock(&wled->lock);
+	}
+}
+//ASUS BSP ADD TO REENABLE WELD ---
+
 static int qpnp_wled_probe(struct platform_device *pdev)
 {
 	struct qpnp_wled *wled;
@@ -2777,7 +2807,9 @@ static int qpnp_wled_probe(struct platform_device *pdev)
 			goto sysfs_fail;
 		}
 	}
-
+	//ASUS BSP ADD to reenable wled+++
+	asus_fix_prev_state(wled,wled->ctrl_base);
+	//ASUS BSP ADD to reenable wled---
 	return 0;
 
 sysfs_fail:

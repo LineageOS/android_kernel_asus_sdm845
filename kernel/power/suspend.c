@@ -47,6 +47,9 @@ static DECLARE_WAIT_QUEUE_HEAD(suspend_freeze_wait_head);
 enum freeze_state __read_mostly suspend_freeze_state;
 static DEFINE_SPINLOCK(suspend_freeze_lock);
 
+unsigned int pm_pwrcs_ret=0;//ASUS_BSP jeff_gu Add for wakeup debug
+bool asus_enter_suspend = false;
+
 void freeze_set_ops(const struct platform_freeze_ops *ops)
 {
 	lock_system_sleep();
@@ -391,7 +394,9 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 			error = suspend_ops->enter(state);
 			trace_suspend_resume(TPS("machine_suspend"),
 				state, false);
+			asus_enter_suspend = true;
 			events_check_enabled = false;
+			pm_pwrcs_ret = 1;//ASUS_BSP [Power] jeff_gu Add for wakeup debug
 		} else if (*wakeup) {
 			pm_get_active_wakeup_sources(suspend_abort,
 				MAX_SUSPEND_ABORT_LEN);

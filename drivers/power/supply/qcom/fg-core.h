@@ -32,6 +32,7 @@
 #include <linux/uaccess.h>
 #include <linux/pmic-voter.h>
 
+
 #define fg_dbg(chip, reason, fmt, ...)			\
 	do {							\
 		if (*chip->debug_mask & (reason))		\
@@ -191,6 +192,7 @@ enum fg_sram_param_id {
 	FG_SRAM_ESR_TIGHT_FILTER,
 	FG_SRAM_ESR_BROAD_FILTER,
 	FG_SRAM_SLOPE_LIMIT,
+	FG_SRAM_KI_COEFF_CUTOFF_SOC,// ASUS_BSP
 	FG_SRAM_MAX,
 };
 
@@ -312,6 +314,7 @@ struct fg_dt_props {
 	int	bmd_en_delay_ms;
 	int	ki_coeff_full_soc_dischg;
 	int	ki_coeff_hi_chg;
+	int	ki_coeff_cutoff_soc;// ASUS_BSP
 	int	jeita_thresholds[NUM_JEITA_LEVELS];
 	int	ki_coeff_soc[KI_COEFF_SOC_LEVELS];
 	int	ki_coeff_low_dischg[KI_COEFF_SOC_LEVELS];
@@ -382,6 +385,19 @@ struct ttf {
 	s64			last_ms;
 };
 
+struct BATT_SAFETY_UPGRADE_CONDITIONS{
+	unsigned long condition1_battery_time;
+	unsigned long condition2_battery_time;
+	int condition1_cycle_count;
+	int condition2_cycle_count;
+	unsigned long condition1_temp_vol_time;
+	unsigned long condition2_temp_vol_time;
+	unsigned long condition1_temp_time;
+	unsigned long condition2_temp_time;
+	unsigned long condition1_vol_time;
+	unsigned long condition2_vol_time;
+};
+
 static const struct fg_pt fg_ln_table[] = {
 	{ 1000,		0 },
 	{ 2000,		693 },
@@ -445,6 +461,7 @@ struct fg_chip {
 	struct mutex		sram_rw_lock;
 	struct mutex		charge_full_lock;
 	struct mutex		qnovo_esr_ctrl_lock;
+	struct BATT_SAFETY_UPGRADE_CONDITIONS safety_upgrade_cond;//ASUS
 	spinlock_t		suspend_lock;
 	u32			batt_soc_base;
 	u32			batt_info_base;
@@ -464,6 +481,12 @@ struct fg_chip {
 	int			maint_soc;
 	int			delta_soc;
 	int			last_msoc;
+	int			last_full_bsoc;//asus bsp +++
+	int			last_report_msoc;//asus bsp +++
+	int			asus_need_keep_report_full;//asus bsp +++
+	int			asus_pending_report_full;//asus bsp +++
+	int			asus_profile_changed;//asus bsp +++
+	unsigned long		asus_report_last_msoc_end_time;// asus bsp +++
 	int			last_recharge_volt_mv;
 	int			delta_temp_irq_count;
 	int			esr_timer_charging_default[NUM_ESR_TIMERS];
@@ -489,12 +512,18 @@ struct fg_chip {
 	struct completion	soc_ready;
 	struct delayed_work	profile_load_work;
 	struct work_struct	status_change_work;
+	struct delayed_work	asus_check_full_work;
 	struct delayed_work	ttf_work;
 	struct delayed_work	sram_dump_work;
 	struct delayed_work	pl_enable_work;
 	struct work_struct	esr_filter_work;
 	struct alarm		esr_filter_alarm;
 	ktime_t			last_delta_temp_time;
+	struct delayed_work	safety_upgrade_work;//ASUS
+	u8			profile_value_esr_rslow_chg;
+	u8			profile_value_esr_rslow_dischg;
+	int			profile_offset_esr_rslow_chg;
+	int			profile_offset_esr_rslow_dischg;
 };
 
 /* Debugfs data structures are below */

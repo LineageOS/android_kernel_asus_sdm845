@@ -64,6 +64,8 @@ struct mutex {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lockdep_map	dep_map;
 #endif
+    const char      *name;
+   // struct task_struct	*mutex_owner_asusdebug;
 };
 
 /*
@@ -110,6 +112,7 @@ static inline void mutex_destroy(struct mutex *lock) {}
 		{ .count = ATOMIC_INIT(1) \
 		, .wait_lock = __SPIN_LOCK_UNLOCKED(lockname.wait_lock) \
 		, .wait_list = LIST_HEAD_INIT(lockname.wait_list) \
+		, .name = #lockname	\
 		__DEBUG_MUTEX_INITIALIZER(lockname) \
 		__DEP_MAP_MUTEX_INITIALIZER(lockname) }
 

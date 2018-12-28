@@ -29,6 +29,16 @@
 #include <linux/usb/usbpd.h>
 #include "usbpd.h"
 
+// ASUS_BSP +++ asus pd cfg
+#define ASUS_PD_MAX_INPUT_VOL_CFG 9000	// 9V
+#define ASUS_PD_MID_INPUT_VOL_CFG 7500	// 7.5V
+#define ASUS_PD_MIN_INPUT_VOL_CFG 5000	// 5V
+#define ASUS_PD_ICL_CUR_CFG_3A 3000		// 3A
+#define ASUS_PD_ICL_CUR_CFG_2A 2000		// 2A
+#define ASUS_PD_ICL_CUR_CFG_1P67A 1670		// 1.67A
+#define ASUS_PD_ICL_CUR_CFG_1P65A 1650		// 1.65A
+// ASUS_BSP --- asus pd cfg
+
 /* To start USB stack for USB3.1 complaince testing */
 static bool usb_compliance_mode;
 module_param(usb_compliance_mode, bool, 0644);
@@ -331,10 +341,12 @@ static void *usbpd_ipc_log;
 static bool check_vsafe0v = true;
 module_param(check_vsafe0v, bool, 0600);
 
-static int min_sink_current = 900;
+//static int min_sink_current = 900;
+static int min_sink_current = 500;
 module_param(min_sink_current, int, 0600);
 
-static const u32 default_src_caps[] = { 0x36019096 };	/* VSafe5V @ 1.5A */
+//static const u32 default_src_caps[] = { 0x36019096 };	/* VSafe5V @ 1.5A */
+static const u32 default_src_caps[] = { 0x36019032 };	/* VSafe5V @ 0.5A */
 static const u32 default_snk_caps[] = { 0x2601912C };	/* VSafe5V @ 3A */
 
 struct vdm_tx {
@@ -450,6 +462,9 @@ struct usbpd {
 	u8			get_battery_status_db;
 	bool			send_get_battery_status;
 	u32			battery_sts_dobj;
+
+    // asus pd cfg
+	int			src_cap_cnt;
 };
 
 static LIST_HEAD(_usbpd);	/* useful for debugging */
@@ -721,7 +736,8 @@ static int pd_select_pdo(struct usbpd *pd, int pdo_pos, int uv, int ua)
 
 	type = PD_SRC_PDO_TYPE(pdo);
 	if (type == PD_SRC_PDO_TYPE_FIXED) {
-		curr = max_current = PD_SRC_PDO_FIXED_MAX_CURR(pdo) * 10;
+		curr = max_current = ua / 1000;
+		//curr = max_current = PD_SRC_PDO_FIXED_MAX_CURR(pdo) * 10;
 
 		/*
 		 * Check if the PDO has enough current, otherwise set the
@@ -761,6 +777,97 @@ static int pd_select_pdo(struct usbpd *pd, int pdo_pos, int uv, int ua)
 
 	pd->requested_current = curr;
 	pd->requested_pdo = pdo_pos;
+
+	return 0;
+}
+
+static int pd_eval_src_caps_asus(struct usbpd *pd)
+{
+	union power_supply_propval val;
+	int i;
+	bool pps_found = false;
+	int cur_mv, cur_ma, cur_mw, index = 0;
+	int pre_mw = 0, pre_mv = 0, pre_ma = 0;
+
+	for (i = 0; i < pd->src_cap_cnt; i++) {
+
+		if (PD_SRC_PDO_TYPE(pd->received_pdos[i]) != PD_SRC_PDO_TYPE_FIXED) {
+			usbpd_err(&pd->dev, "src_cap %d invalid! %08x\n", i, pd->received_pdos[i]);
+			continue;
+		}
+
+		cur_mv = PD_SRC_PDO_FIXED_VOLTAGE(pd->received_pdos[i]) * 50;
+		cur_ma = PD_SRC_PDO_FIXED_MAX_CURR(pd->received_pdos[i]) * 10;
+
+		if (cur_mv == ASUS_PD_MIN_INPUT_VOL_CFG)
+			cur_ma = (cur_ma > ASUS_PD_ICL_CUR_CFG_3A) ? ASUS_PD_ICL_CUR_CFG_3A : cur_ma;
+		else if (cur_mv > ASUS_PD_MIN_INPUT_VOL_CFG && cur_mv <= ASUS_PD_MID_INPUT_VOL_CFG)
+			cur_ma = (cur_ma > ASUS_PD_ICL_CUR_CFG_2A) ? ASUS_PD_ICL_CUR_CFG_2A : cur_ma;
+		else if (cur_mv <= ASUS_PD_MAX_INPUT_VOL_CFG)
+			cur_ma = (cur_ma > ASUS_PD_ICL_CUR_CFG_1P67A) ? ASUS_PD_ICL_CUR_CFG_1P67A : cur_ma;
+		else if (cur_mv > ASUS_PD_MAX_INPUT_VOL_CFG)
+			cur_ma = 0;
+		else {
+			usbpd_err(&pd->dev, "cur_mv %d invalid\n", cur_mv);
+			continue;
+		}
+
+		cur_mw = cur_mv * cur_ma;
+		if (pre_mw < cur_mw || (pre_mw == cur_mw && cur_mv < pre_mv) || (pre_mw == cur_mw && cur_mv == ASUS_PD_MAX_INPUT_VOL_CFG)) {
+			pre_mw = cur_mw;
+			pre_mv = cur_mv;
+			pre_ma = cur_ma;
+			index = i;
+		}
+	}
+
+	// set icl to 1.65A for 9V, 1.67A PDO
+	if (pre_mv == ASUS_PD_MAX_INPUT_VOL_CFG && pre_ma == ASUS_PD_ICL_CUR_CFG_1P67A)
+		pre_ma = ASUS_PD_ICL_CUR_CFG_1P65A;
+
+	usbpd_info(&pd->dev, "select index=%d mv=%d ma=%d\n", index, pre_mv, pre_ma);
+
+	pd->peer_usb_comm = PD_SRC_PDO_FIXED_USB_COMM(pd->received_pdos[index]);
+	pd->peer_pr_swap = PD_SRC_PDO_FIXED_PR_SWAP(pd->received_pdos[index]);
+	pd->peer_dr_swap = PD_SRC_PDO_FIXED_DR_SWAP(pd->received_pdos[index]);
+
+	val.intval = PD_SRC_PDO_FIXED_USB_SUSP(pd->received_pdos[index]);
+	power_supply_set_property(pd->usb_psy,
+			POWER_SUPPLY_PROP_PD_USB_SUSPEND_SUPPORTED, &val);
+
+	/* Check for PPS APDOs */
+	if (pd->spec_rev == USBPD_REV_30) {
+		for (i = 1; i < PD_MAX_DATA_OBJ; i++) {
+			if ((PD_SRC_PDO_TYPE(pd->received_pdos[i]) ==
+					PD_SRC_PDO_TYPE_AUGMENTED) &&
+				!PD_APDO_PPS(pd->received_pdos[i])) {
+				pps_found = true;
+				break;
+			}
+		}
+
+		/* downgrade to 2.0 if no PPS */
+		if (!pps_found && !rev3_sink_only)
+			pd->spec_rev = USBPD_REV_20;
+	}
+
+	val.intval = pps_found ?
+			POWER_SUPPLY_PD_PPS_ACTIVE :
+			POWER_SUPPLY_PD_ACTIVE;
+	power_supply_set_property(pd->usb_psy,
+			POWER_SUPPLY_PROP_PD_ACTIVE, &val);
+
+	pd_select_pdo(pd, index + 1, pre_mv * 1000, pre_ma * 1000);
+
+	if (pre_mw >= 10000000) { // >= 10W, quick charge
+		if (10000000 == pre_mw)
+			val.intval = 2; // AC_EQ_10W
+		else
+			val.intval = 1; // AC_GT_10W
+		usbpd_info(&pd->dev, "pdo(%d) >= 10W, set qc state = %d\n", pre_mw, val.intval);
+		power_supply_set_property(pd->usb_psy,
+				POWER_SUPPLY_PROP_PD_QC_STATE, &val);
+	}
 
 	return 0;
 }
@@ -1388,7 +1495,10 @@ static void usbpd_set_state(struct usbpd *pd, enum usbpd_state next_state)
 		pd->hard_reset_count = 0;
 
 		/* evaluate PDOs and select one */
-		ret = pd_eval_src_caps(pd);
+		ret = pd_eval_src_caps_asus(pd);
+		if (0) {
+			ret = pd_eval_src_caps(pd);
+		}
 		if (ret < 0) {
 			usbpd_err(&pd->dev, "Invalid src_caps received. Skipping request\n");
 			break;
@@ -2395,6 +2505,8 @@ static void usbpd_sm(struct work_struct *w)
 					min_t(size_t, rx_msg->data_len,
 						sizeof(pd->received_pdos)));
 			pd->src_cap_id++;
+
+			pd->src_cap_cnt = PD_MSG_HDR_COUNT(rx_msg->hdr);
 
 			usbpd_set_state(pd, PE_SNK_EVALUATE_CAPABILITY);
 		} else if (pd->hard_reset_count < 3) {
@@ -3541,6 +3653,9 @@ static ssize_t select_pdo_store(struct device *dev,
 	int src_cap_id;
 	int pdo, uv = 0, ua = 0;
 	int ret;
+
+	usbpd_info(&pd->dev, "don't select pdo by userspace\n");
+	return size;
 
 	mutex_lock(&pd->swap_lock);
 

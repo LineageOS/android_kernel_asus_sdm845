@@ -15,5 +15,6 @@
 #include "cam_ois_dev.h"
 
 int cam_ois_driver_soc_init(struct cam_ois_ctrl_t *o_ctrl);
+void dump_regulator_name(struct cam_ois_ctrl_t *o_ctrl,const char * tag);
 
 #endif/* _CAM_OIS_SOC_H_ */

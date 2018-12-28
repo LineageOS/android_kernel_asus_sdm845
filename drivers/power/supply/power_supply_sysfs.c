@@ -50,7 +50,9 @@ static ssize_t power_supply_show_property(struct device *dev,
 		"TYPEC", "TYPEC_UFP", "TYPEC_DFP"
 	};
 	static char *status_text[] = {
-		"Unknown", "Charging", "Discharging", "Not charging", "Full"
+		"Unknown", "Charging", "Discharging", "Not charging", "Full",
+		"Quick charging","Not Quick charging",
+		"Quick charging 10W","Not Quick charging 10W"
 	};
 	static char *charge_type[] = {
 		"Unknown", "N/A", "Trickle", "Fast",
@@ -104,7 +106,7 @@ static ssize_t power_supply_show_property(struct device *dev,
 		}
 	}
 
-	if (off == POWER_SUPPLY_PROP_STATUS)
+	if (off == POWER_SUPPLY_PROP_STATUS || off == POWER_SUPPLY_PROP_STATUS_QCOM)
 		return scnprintf(buf, PAGE_SIZE, "%s\n",
 				status_text[value.intval]);
 	else if (off == POWER_SUPPLY_PROP_CHARGE_TYPE)
@@ -348,6 +350,8 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(serial_number),
 	POWER_SUPPLY_ATTR(battery_type),
 	POWER_SUPPLY_ATTR(cycle_counts),
+	POWER_SUPPLY_ATTR(pd_qc_state),
+	POWER_SUPPLY_ATTR(status_qcom),
 };
 
 static struct attribute *

@@ -89,6 +89,8 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
+#include <linux/gpio.h>
+
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
@@ -121,6 +123,7 @@ void (*__initdata late_time_init)(void);
 char __initdata boot_command_line[COMMAND_LINE_SIZE];
 /* Untouched saved command line (eg. for /proc) */
 char *saved_command_line;
+EXPORT_SYMBOL(saved_command_line);
 /* Command line for parameter parsing */
 static char *static_command_line;
 /* Command line for per-initcall parameter parsing */
@@ -129,12 +132,185 @@ static char *initcall_command_line;
 static char *execute_command;
 static char *ramdisk_execute_command;
 
+#define AUDIO_DEBUG_GPIO 122
+
 /*
  * Used to generate warnings if static_key manipulation functions are used
  * before jump_label_init is called.
  */
 bool static_key_initialized __read_mostly;
 EXPORT_SYMBOL_GPL(static_key_initialized);
+
+//ASUS_BSP add asus_hw_id++++
+int g_asus_hw_id = 999;
+EXPORT_SYMBOL(g_asus_hw_id);
+
+static int get_hw_id(char *str)
+{
+    char hw_id_str[4] = {0};
+    strncpy(hw_id_str, str, sizeof(hw_id_str));
+
+    if (0 == strncmp(hw_id_str, "EVB", sizeof(hw_id_str))) {
+        g_asus_hw_id = 0;
+    } else if (0 == strncmp(hw_id_str, "SR1", sizeof(hw_id_str))) {
+        g_asus_hw_id = 1;
+    } else if (0 == strncmp(hw_id_str, "SR2", sizeof(hw_id_str))) {
+        g_asus_hw_id = 2;
+    } else if (0 == strncmp(hw_id_str, "ER", sizeof(hw_id_str))) {
+        g_asus_hw_id = 3;
+    } else if (0 == strncmp(hw_id_str, "ER2", sizeof(hw_id_str))) {
+        g_asus_hw_id = 4;
+    } else if (0 == strncmp(hw_id_str, "ER3", sizeof(hw_id_str))) {
+        g_asus_hw_id = 5;
+    } else {
+        pr_err(" unknown hw_id_str = %s\n ", hw_id_str);
+    }
+
+    pr_err(" asus_hw_id = %d\n ", g_asus_hw_id);
+
+	return 0;
+}
+__setup("HW=", get_hw_id);
+//ASUS_BSP add asus_hw_id++++
+
+//ASUS_BSP add recovery_mode_flag++++
+bool g_asus_recovery_mode = false;
+EXPORT_SYMBOL(g_asus_recovery_mode);
+
+static int get_recovery_mode(char *str)
+{
+    char recovery_mode_str[2] = {0};
+    strncpy(recovery_mode_str, str, sizeof(recovery_mode_str));
+    if (0 == strncmp(recovery_mode_str, "Y", sizeof(recovery_mode_str))) {
+        g_asus_recovery_mode = true;
+    } else {
+        g_asus_recovery_mode = false;
+    }
+    pr_err(" [Recovery]recovery mode = %d(%s)\n ", g_asus_recovery_mode, recovery_mode_str);
+
+	return 0;
+}
+__setup("recovery_mode=", get_recovery_mode);
+//ASUS_BSP add recovery_mode_flag---
+
+//ASUS_BSP add charger_mode flag+++
+bool g_charger_mode = false;
+static int set_charger_mode(char *str)
+{
+    if ( strcmp("charger", str) == 0 )
+        g_charger_mode = true;
+    else
+        g_charger_mode = false;
+
+    pr_err("[Charger]g_charger_mode = %d\n", g_charger_mode);
+    return 0;
+}
+__setup("androidboot.mode=", set_charger_mode);
+EXPORT_SYMBOL(g_charger_mode);
+//ASUS_BSP add charger_mode flag---
+
+//ASUS_BSP add read unique_id for factory++++
+char lcd_unique_id[64] = {0};
+EXPORT_SYMBOL(lcd_unique_id);
+
+static int get_lcd_uniqueId(char *str)
+{
+    strncpy(lcd_unique_id, str, sizeof(lcd_unique_id));
+    pr_err(" [Display]lcd_unique_id = %s\n ", lcd_unique_id);
+
+	return 0;
+}
+__setup("LCD=", get_lcd_uniqueId);
+//ASUS_BSP add read unique_id for factory----
+
+char lcd_id1[64] = {0};
+EXPORT_SYMBOL(lcd_id1);
+
+static int get_lcd_Id(char *str)
+{
+    strncpy(lcd_id1, str, sizeof(lcd_id1));
+    pr_err(" [Display]lcd_id1 = 0x%s\n ", lcd_id1);
+
+	return 0;
+}
+__setup("LCD_ID1=", get_lcd_Id);
+
+char lcd_stage_id[64] = {0};
+EXPORT_SYMBOL(lcd_stage_id);
+
+static int get_lcd_stageId(char *str)
+{
+    strncpy(lcd_stage_id, str, sizeof(lcd_stage_id));
+    pr_err(" [Display]lcd_stage_id = %s\n ", lcd_stage_id);
+
+	return 0;
+}
+__setup("StageID=", get_lcd_stageId);
+
+
+char build_version[64] = {0};
+EXPORT_SYMBOL(build_version);
+
+static int get_build_version(char *str)
+{
+    strncpy(build_version, str, sizeof(build_version));
+    pr_err(" [BuiildV]build_version = %s\n ", build_version);
+
+	return 0;
+}
+__setup("buildv=", get_build_version);
+
+
+
+//ASUS_BSP add asus_prj_id++++
+int g_asus_prj_id = 0;
+EXPORT_SYMBOL(g_asus_prj_id);
+
+static int get_prj_id(char *str)
+{
+    char prj_id_str[10] = {0};
+    strncpy(prj_id_str, str, sizeof(prj_id_str));
+
+    if (0 == strncmp(prj_id_str, "ZS620KL", sizeof(prj_id_str))) {
+        g_asus_prj_id = 0;
+    } else if (0 == strncmp(prj_id_str, "ZS620KL2", sizeof(prj_id_str))) {
+        g_asus_prj_id = 1;
+    } else {
+        pr_err(" unknown prj_id_str = %s\n ", prj_id_str);
+    }
+
+    pr_err(" asus_prj_id = %d\n ", g_asus_prj_id);
+
+	return 0;
+}
+__setup("PRJ=", get_prj_id);
+//ASUS_BSP add asus_prj_id++++
+
+//ASUS_BSP add bat_reload_condition++++
+int g_bat_reload_cond = 0;
+EXPORT_SYMBOL(g_bat_reload_cond);
+
+static int get_bat_reload_condition(char *str)
+{
+    char reload_cond_str[2] = {0};
+    strncpy(reload_cond_str, str, sizeof(reload_cond_str));
+
+    if (0 == strncmp(reload_cond_str, "0", sizeof(reload_cond_str))) {
+        g_bat_reload_cond = 0;
+    } else if (0 == strncmp(reload_cond_str, "1", sizeof(reload_cond_str))) {
+        g_bat_reload_cond = 1;
+    } else if (0 == strncmp(reload_cond_str, "2", sizeof(reload_cond_str))) {
+        g_bat_reload_cond = 2;
+    } else {
+        pr_err(" unknown reload_cond_str = %s\n ", reload_cond_str);
+    }
+
+    pr_err(" g_bat_reload_cond = %d\n ", g_bat_reload_cond);
+
+	return 0;
+}
+__setup("bat_reload_cond=", get_bat_reload_condition);
+//ASUS_BSP add bat_reload_condition----
 
 /*
  * If set, this is an indication to the drivers that reset the underlying
@@ -231,6 +407,81 @@ static int __init loglevel(char *str)
 }
 
 early_param("loglevel", loglevel);
+
+//+++ ASUS_BSP : miniporting : Add for uart / kernel log
+int g_user_klog_mode = 1;
+EXPORT_SYMBOL(g_user_klog_mode);
+
+static int set_user_klog_mode(char *str)
+{
+    if ( strcmp("y", str) == 0 )
+    {
+        g_user_klog_mode = 1;
+    }
+    else
+    {
+        g_user_klog_mode = 1;
+    }
+
+    //printk("Kernel log mode = %d\n", g_user_klog_mode);
+    return 0;
+}
+early_param("klog", set_user_klog_mode);
+int g_user_dbg_mode = 0;
+EXPORT_SYMBOL(g_user_dbg_mode);
+
+static int set_user_dbg_mode(char *str)
+{
+//ASUS_BSP younger +++
+	int ret;
+	ret = gpio_request(AUDIO_DEBUG_GPIO, "AUDIO_DEBUG");
+	if (ret)
+		printk("%s: Failed to request gpio AUDIO_DEBUG %d\n", __func__, AUDIO_DEBUG_GPIO);
+#if 0
+	//	if(g_ASUS_PRJ_STAGE == STAGE_MP )
+	//	{
+	//		gpio_direction_output(g_gpio_audio_debug, 1);/* disable uart log, enable audio */
+	//	}
+#endif
+//ASUS_BSP younger ---
+if ( strcmp("y", str) == 0 )
+    {
+        g_user_dbg_mode = 1;
+       gpio_direction_output(AUDIO_DEBUG_GPIO, 0); /* enable uart log, disable audio */
+    }
+    else
+    {
+        g_user_dbg_mode = 0;
+       gpio_direction_output(AUDIO_DEBUG_GPIO, 1); /* disable uart log, enable audio */
+    }
+
+    printk("Kernel uart dbg mode = %d\n", g_user_dbg_mode);
+    return 0;
+}
+early_param("dbg", set_user_dbg_mode);
+//--- ASUS_BSP : miniporting : Add for uart / kernel log
+
+//ASUS_BSP Freeman : Add for rtb log +++
+int g_user_rtb_mode = 0;
+EXPORT_SYMBOL(g_user_rtb_mode);
+
+static int set_user_rtb_mode(char *str)
+{
+    if ( strcmp("y", str) == 0 )
+    {
+        g_user_rtb_mode = 1;
+    }
+    else
+    {
+        g_user_rtb_mode = 0;
+    }
+
+    //printk("RTB log mode = %d\n", g_user_rtb_mode);
+    return 0;
+}
+early_param("rtb_enable", set_user_rtb_mode);
+//ASUS_BSP younger : Add for rtb log  ---
+
 
 /* Change NUL term back to "=", to make "param" the whole string. */
 static int __init repair_env_string(char *param, char *val,

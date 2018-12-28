@@ -12,6 +12,7 @@
 
 #include "sdm845.dtsi"
 #include "sdm845-v2-camera.dtsi"
+#include "ZS620KL-thermal-overlay.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. SDM845 V2";

@@ -605,6 +605,7 @@ static uint32_t cam_icp_mgr_calc_base_clk(uint32_t frame_cycles,
 		budget, frame_cycles,
 		(long long int)(frame_cycles * mul), base_clk);
 
+	if (base_clk >= 250000000) base_clk = 600000000; // ASUS_BSP maximize base_clk for 4K@60fps
 	return base_clk;
 }
 

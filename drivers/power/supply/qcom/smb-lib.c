@@ -24,6 +24,7 @@
 #include "battery.h"
 #include "step-chg-jeita.h"
 #include "storm-watch.h"
+#include "asus_charger.h"
 
 #define smblib_err(chg, fmt, ...)		\
 	pr_err("%s: %s: " fmt, chg->name,	\
@@ -133,6 +134,8 @@ static int smblib_get_jeita_cc_delta(struct smb_charger *chg, int *cc_delta_ua)
 int smblib_icl_override(struct smb_charger *chg, bool override)
 {
 	int rc;
+
+	//~ CHG_DBG("%s: enter, override = %d\n", __func__, override);
 
 	rc = smblib_masked_write(chg, USBIN_LOAD_CFG_REG,
 				ICL_OVERRIDE_AFTER_APSD_BIT,
@@ -263,7 +266,7 @@ static const struct apsd_result const smblib_apsd_results[] = {
 	},
 };
 
-static const struct apsd_result *smblib_get_apsd_result(struct smb_charger *chg)
+const struct apsd_result *smblib_get_apsd_result(struct smb_charger *chg)
 {
 	int rc, i;
 	u8 apsd_stat, stat;
@@ -402,6 +405,15 @@ int smblib_set_usb_suspend(struct smb_charger *chg, bool suspend)
 		}
 	}
 
+	if (g_asus_hw_id > 2) { // do thermal alert action after ER
+		// usb_thermal_alert trigger, force usb suspend
+		if (chg->asus_chg->usb_connector_event > 0) {
+			suspend = true;
+			smblib_err(chg, "Force usb suspend when usb_thermal_alert_trigger(%d)\n",
+				chg->asus_chg->usb_connector_event);
+		}
+	}
+
 	rc = smblib_masked_write(chg, USBIN_CMD_IL_REG, USBIN_SUSPEND_BIT,
 				 suspend ? USBIN_SUSPEND_BIT : 0);
 	if (rc < 0)
@@ -471,6 +483,12 @@ static int smblib_set_usb_pd_allowed_voltage(struct smb_charger *chg,
 {
 	int rc;
 	u8 allowed_voltage;
+	u8 reg = 0;
+
+	if (chg->asus_chg->asus_flow_processing_flag) {
+		CHG_DBG("%s: skip due to asus flow in process, min_allowed_uv=%d, max_allowed_uv=%d\n", __func__ , min_allowed_uv, max_allowed_uv);
+		return 0;
+	}
 
 	if (min_allowed_uv == MICRO_5V && max_allowed_uv == MICRO_5V) {
 		allowed_voltage = USBIN_ADAPTER_ALLOW_5V;
@@ -492,7 +510,8 @@ static int smblib_set_usb_pd_allowed_voltage(struct smb_charger *chg,
 			min_allowed_uv, max_allowed_uv);
 		return -EINVAL;
 	}
-
+	smblib_read(chg, USBIN_ADAPTER_ALLOW_CFG_REG, &reg);
+	//~ CHG_DBG("%s: prev voltage=0x%x, allowed_voltage=%d\n", __func__ , reg, allowed_voltage);
 	rc = smblib_set_adapter_allowance(chg, allowed_voltage);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't configure adapter allowance rc=%d\n",
@@ -510,8 +529,9 @@ static int smblib_request_dpdm(struct smb_charger *chg, bool enable)
 {
 	int rc = 0;
 
-	if (chg->pr_swap_in_progress)
-		return 0;
+	if (chg->pr_swap_in_progress) {
+		return rc;
+	}
 
 	/* fetch the DPDM regulator */
 	if (!chg->dpdm_reg && of_get_property(chg->dev->of_node,
@@ -552,7 +572,10 @@ static int smblib_request_dpdm(struct smb_charger *chg, bool enable)
 static void smblib_rerun_apsd(struct smb_charger *chg)
 {
 	int rc;
+	u8 reg=0;
 
+	smblib_read(chg, USBIN_OPTIONS_1_CFG_REG, &reg);
+	CHG_DBG("re-running APSD pmi[0x1362]=%02X\n",reg);
 	smblib_dbg(chg, PR_MISC, "re-running APSD\n");
 	if (chg->wa_flags & QC_AUTH_INTERRUPT_WA_BIT) {
 		rc = smblib_masked_write(chg,
@@ -561,6 +584,8 @@ static void smblib_rerun_apsd(struct smb_charger *chg)
 		if (rc < 0)
 			smblib_err(chg, "Couldn't enable HVDCP auth IRQ rc=%d\n",
 									rc);
+        smblib_read(chg, USBIN_SOURCE_CHANGE_INTRPT_ENB_REG, &reg);
+        CHG_DBG("re-running APSD pmi[0x1369]=%02X\n",reg);
 	}
 
 	rc = smblib_masked_write(chg, CMD_APSD_REG,
@@ -569,25 +594,67 @@ static void smblib_rerun_apsd(struct smb_charger *chg)
 		smblib_err(chg, "Couldn't re-run APSD rc=%d\n", rc);
 }
 
-static const struct apsd_result *smblib_update_usb_type(struct smb_charger *chg)
+const struct apsd_result *smblib_update_usb_type(struct smb_charger *chg)
 {
 	const struct apsd_result *apsd_result = smblib_get_apsd_result(chg);
+	static bool once = false; //WeiYu ++ for CDP WA
 
 	/* if PD is active, APSD is disabled so won't have a valid result */
 	if (chg->pd_active) {
 		chg->real_charger_type = POWER_SUPPLY_TYPE_USB_PD;
+	} else if (chg->asus_chg->asus_adapter_detecting_flag && apsd_result->pst == POWER_SUPPLY_TYPE_UNKNOWN){
+		chg->real_charger_type = POWER_SUPPLY_TYPE_USB_DCP;
+		chg->usb_psy_desc.type = POWER_SUPPLY_TYPE_USB_DCP;
 	} else {
 		/*
 		 * Update real charger type only if its not FLOAT
 		 * detected as as SDP
 		 */
 		if (!(apsd_result->pst == POWER_SUPPLY_TYPE_USB_FLOAT &&
-			chg->real_charger_type == POWER_SUPPLY_TYPE_USB))
-		chg->real_charger_type = apsd_result->pst;
+			chg->real_charger_type == POWER_SUPPLY_TYPE_USB)) {
+			chg->real_charger_type = apsd_result->pst;
+
+			/*
+			   WeiYu:
+			   Let CDP WA works at once it detect usb dcp
+			   [concern] Check WA wont affect other type
+			   		   To confirm CDP wont become SDP at other scnario.\
+			   [history] WA for CDP becomes SDP during booting situation
+			   [history] another pattern high~dcp~sdp
+			   [pattern] Before WA: cdp~vbus auto low&high~unknown~sdp
+			*/
+			if(g_CDP_WA && chg->real_charger_type == POWER_SUPPLY_TYPE_UNKNOWN){
+				++g_CDP_WA;
+				CHG_DBG("detected usb tye CDP->unknown, CDP_WA %d\n",g_CDP_WA);
+				if(g_CDP_WA >= 6){
+					g_CDP_WA =0;
+					CHG_DBG("Error! Reset CDP_WA for safty\n");
+				}
+			}
+			else if(!once && chg->real_charger_type == POWER_SUPPLY_TYPE_USB_CDP){
+				g_CDP_WA = 3;
+				once = true;
+				CHG_DBG("CDP WA is disabled, and do WA one time next round\n");
+                if (chg->asus_chg->pon_cable_det_flag) {
+                    chg->asus_chg->cdp_high_wa_flag = true;
+                    CHG_DBG("%s: CDP detected, asus run legacy wa in 5s\n", __func__);
+                    schedule_delayed_work(&chg->asus_chg->legacy_det_work, msecs_to_jiffies(5000));
+                }
+			}
+			else if(!once){
+				once = true;
+				CHG_DBG("CDP WA is disabled, real charge type =%d\n", chg->real_charger_type);
+				if (g_charger_mode && chg->real_charger_type == POWER_SUPPLY_TYPE_USB) {
+					schedule_delayed_work(&chg->asus_chg->legacy_det_work, msecs_to_jiffies(0));
+				}
+			}
+			else;
+		}
 	}
 
 	smblib_dbg(chg, PR_MISC, "APSD=%s PD=%d\n",
 					apsd_result->name, chg->pd_active);
+	CHG_DBG("%s: APSD=%s, real_charge_type=%d\n", __func__, apsd_result->name, chg->real_charger_type);
 	return apsd_result;
 }
 
@@ -833,6 +900,7 @@ static int smblib_get_pulse_cnt(struct smb_charger *chg, int *count)
 #define USBIN_150MA	150000
 #define USBIN_500MA	500000
 #define USBIN_900MA	900000
+#define USBIN_475MA	475000
 
 static int set_sdp_current(struct smb_charger *chg, int icl_ua)
 {
@@ -857,6 +925,10 @@ static int set_sdp_current(struct smb_charger *chg, int icl_ua)
 	case USBIN_900MA:
 		/* USB 3.0 900mA */
 		icl_options = CFG_USB3P0_SEL_BIT | USB51_MODE_BIT;
+		break;
+	case USBIN_475MA:
+		/* USB 2.0 500mA */
+		icl_options = USB51_MODE_BIT;
 		break;
 	default:
 		smblib_err(chg, "ICL %duA isn't supported for SDP\n", icl_ua);
@@ -926,6 +998,7 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 	if (chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_DEFAULT
 		&& (chg->real_charger_type == POWER_SUPPLY_TYPE_USB)) {
 		rc = set_sdp_current(chg, icl_ua);
+		rc = smblib_set_charge_param(chg, &chg->param.usb_icl, icl_ua);
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't set SDP ICL rc=%d\n", rc);
 			goto enable_icl_changed_interrupt;
@@ -944,7 +1017,7 @@ override_suspend_config:
 	override = true;
 	if (icl_ua == INT_MAX) {
 		/* remove override if no voters - hw defaults is desired */
-		override = false;
+		//override = false;
 	} else if (chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_DEFAULT) {
 		if (chg->real_charger_type == POWER_SUPPLY_TYPE_USB)
 			/* For std cable with type = SDP never override */
@@ -1105,13 +1178,17 @@ static int __smblib_set_prop_typec_power_role(struct smb_charger *chg,
 {
 	int rc = 0;
 	u8 power_role;
-
+    //~ CHG_DBG("%s: enter, power_role=%d\n", __func__, val->intval);
 	switch (val->intval) {
 	case POWER_SUPPLY_TYPEC_PR_NONE:
 		power_role = TYPEC_DISABLE_CMD_BIT;
 		break;
 	case POWER_SUPPLY_TYPEC_PR_DUAL:
 		power_role = 0;
+        if (g_charger_mode) {
+            power_role = UFP_EN_CMD_BIT;
+            CHG_DBG("%s: force UFP mode in charger mode\n", __func__);
+        }
 		break;
 	case POWER_SUPPLY_TYPEC_PR_SINK:
 		power_role = UFP_EN_CMD_BIT;
@@ -1232,15 +1309,49 @@ static int smblib_chg_disable_vote_callback(struct votable *votable, void *data,
 {
 	struct smb_charger *chg = data;
 	int rc;
+	u8 stat, reg;
 
-	rc = smblib_masked_write(chg, CHARGING_ENABLE_CMD_REG,
-				 CHARGING_ENABLE_CMD_BIT,
-				 chg_disable ? 0 : CHARGING_ENABLE_CMD_BIT);
+    CHG_DBG("%s: client = %s, chg_disable=%d\n",__func__, client, chg_disable);
+
+	rc = smblib_read(chg, CHGR_CFG2_REG, &stat);
+	if (rc < 0) {
+		smblib_err(chg, "Couldn't read CHGR_CFG2_REG rc=%d\n", rc);
+		return rc;
+	}
+	rc = smblib_read(chg, CHARGING_ENABLE_CMD_REG, &reg);
+	if (rc < 0) {
+		smblib_err(chg, "Couldn't read CHARGING_ENABLE_CMD_REG rc=%d\n", rc);
+		return rc;
+	}
+	CHG_DBG("%s: (before) CHGR_CFG2_REG = 0x%x, CHARGING_ENABLE_CMD_REG = 0x%x\n",__func__, stat, reg);
+
+	if (stat & CHG_EN_POLARITY_BIT) {
+		rc = smblib_masked_write(chg, CHARGING_ENABLE_CMD_REG,
+					CHARGING_ENABLE_CMD_BIT,
+					chg_disable ? CHARGING_ENABLE_CMD_BIT : 0);
+	} else {
+		rc = smblib_masked_write(chg, CHARGING_ENABLE_CMD_REG,
+					CHARGING_ENABLE_CMD_BIT,
+					chg_disable ? 0 : CHARGING_ENABLE_CMD_BIT);
+	}
+
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't %s charging rc=%d\n",
 			chg_disable ? "disable" : "enable", rc);
 		return rc;
 	}
+
+	rc = smblib_read(chg, CHGR_CFG2_REG, &stat);
+	if (rc < 0) {
+		smblib_err(chg, "Couldn't read CHGR_CFG2_REG rc=%d\n", rc);
+		return rc;
+	}
+	rc = smblib_read(chg, CHARGING_ENABLE_CMD_REG, &reg);
+	if (rc < 0) {
+		smblib_err(chg, "Couldn't read CHARGING_ENABLE_CMD_REG rc=%d\n", rc);
+		return rc;
+	}
+	CHG_DBG("%s: (after) CHGR_CFG2_REG = 0x%x, CHARGING_ENABLE_CMD_REG = 0x%x\n",__func__, stat, reg);
 
 	return 0;
 }
@@ -1624,6 +1735,13 @@ int smblib_vbus_regulator_enable(struct regulator_dev *rdev)
 	struct smb_charger *chg = rdev_get_drvdata(rdev);
 	int rc = 0;
 
+	if (chip_dev->chg.asus_chg->usb_connector_event > 0) {
+		if (g_asus_hw_id > 2) { // do thermal alert action after ER
+			// Do not enable otg when alert triggered
+			return rc;
+		}
+	}
+
 	mutex_lock(&chg->otg_oc_lock);
 	if (chg->otg_en)
 		goto unlock;
@@ -1745,6 +1863,9 @@ int smblib_get_prop_batt_present(struct smb_charger *chg,
 	return rc;
 }
 
+extern bool g_ubatterylife_enable_flag;
+extern int ubatlife_chg_status;
+
 int smblib_get_prop_batt_capacity(struct smb_charger *chg,
 				  union power_supply_propval *val)
 {
@@ -1762,7 +1883,7 @@ int smblib_get_prop_batt_capacity(struct smb_charger *chg,
 }
 
 int smblib_get_prop_batt_status(struct smb_charger *chg,
-				union power_supply_propval *val)
+				union power_supply_propval *val,union power_supply_propval *asus_val)
 {
 	union power_supply_propval pval = {0, };
 	bool usb_online, dc_online, qnovo_en;
@@ -1803,6 +1924,7 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
 			break;
 		}
+		asus_val->intval = val->intval;//ASUS BSP Modify
 		return rc;
 	}
 
@@ -1813,16 +1935,54 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 	case FULLON_CHARGE:
 	case TAPER_CHARGE:
 		val->intval = POWER_SUPPLY_STATUS_CHARGING;
+        if (asus_get_prop_batt_capacity(chg) == 100) {
+            asus_val->intval = POWER_SUPPLY_STATUS_FULL;
+            printk("[BAT][CHG] Batt_status = FULL (modified by reporting 100%%)\n");
+        } else {
+            if (g_charger_mode && chg->asus_chg->quick_charge_ac_flag) {
+                if(asus_get_prop_batt_capacity(chg) <= 70) {
+                    if (AC_GT_10W == chg->asus_chg->quick_charge_ac_flag) {
+                        //~ printk("[BAT][CHG] Batt_status = QUICK_CHARGING\n");
+                        asus_val->intval = POWER_SUPPLY_STATUS_QUICK_CHARGING;
+                    } else {
+                        //~ printk("[BAT][CHG] Batt_status = QUICK_CHARGING_10W\n");
+                        asus_val->intval = POWER_SUPPLY_STATUS_QUICK_CHARGING_10W;
+                    }
+                } else {
+                    if (AC_GT_10W == chg->asus_chg->quick_charge_ac_flag) {
+                        //~ printk("[BAT][CHG] Batt_status = NOT_QUICK_CHARGING\n");
+                        asus_val->intval = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING;
+                    } else {
+                        //~ printk("[BAT][CHG] Batt_status = NOT_QUICK_CHARGING_10W\n");
+                        asus_val->intval = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING_10W;
+                    }
+                }
+            } else {
+                //~ printk("[BAT][CHG] Batt_status = CHARGING\n");
+                asus_val->intval = POWER_SUPPLY_STATUS_CHARGING;
+            }
+        }
 		break;
 	case TERMINATE_CHARGE:
 	case INHIBIT_CHARGE:
+        //~ printk("[BAT][CHG] Batt_status = FULL\n");
+        asus_val->intval = POWER_SUPPLY_STATUS_FULL;
 		val->intval = POWER_SUPPLY_STATUS_FULL;
 		break;
 	case DISABLE_CHARGE:
 		val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+        if (chg->asus_chg->asus_adapter_detecting_flag && (asus_get_prop_batt_capacity(chg) == 100)) {
+            asus_val->intval = POWER_SUPPLY_STATUS_FULL;
+            printk("[BAT][CHG] Batt_status = FULL (modified by reporting 100%%)\n");
+        } else {
+            //~ printk("[BAT][CHG] Batt_status = NOT_CHARGING\n");
+            asus_val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+        }
 		break;
 	default:
-		val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
+        printk("[BAT][CHG] Batt_status = UNKNOWN\n");
+        val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
+		asus_val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
 		break;
 	}
 
@@ -1832,6 +1992,7 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 	if (!usb_online && dc_online
 		&& chg->fake_batt_status == POWER_SUPPLY_STATUS_FULL) {
 		val->intval = POWER_SUPPLY_STATUS_FULL;
+		asus_val->intval = POWER_SUPPLY_STATUS_FULL;
 		return 0;
 	}
 
@@ -1856,7 +2017,32 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 
 	/* ignore stat7 when qnovo is enabled */
 	if (!qnovo_en && !stat)
+	{
 		val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		//ASUS_BSP +++
+		if(g_ubatterylife_enable_flag == 1){
+			if(ubatlife_chg_status == UBATLIFE_CHG_THD)
+			{
+				val->intval = POWER_SUPPLY_STATUS_CHARGING;
+				if(asus_val->intval != POWER_SUPPLY_STATUS_FULL)
+					asus_val->intval = POWER_SUPPLY_STATUS_CHARGING;
+			}
+			if(ubatlife_chg_status == UBATLIFE_DISCHG_THD)
+			{
+				val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+				if(asus_val->intval != POWER_SUPPLY_STATUS_FULL)
+					asus_val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			}
+		}
+		//ASUS_BSP ---
+	}
+
+    // report not charging when thermal alert is still on
+    if (chg->asus_chg->usb_connector_event) {
+        val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+        if(asus_val->intval != POWER_SUPPLY_STATUS_FULL)
+			asus_val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+    }
 
 	return 0;
 }
@@ -1923,10 +2109,16 @@ int smblib_get_prop_batt_health(struct smb_charger *chg,
 				val->intval = POWER_SUPPLY_HEALTH_OVERVOLTAGE;
 				smblib_err(chg, "battery over-voltage vbat_fg = %duV, fv = %duV\n",
 						pval.intval, effective_fv_uv);
+                if (!chg->asus_chg->bat_ovp_flag) {
+                    chg->asus_chg->bat_ovp_flag = true;
+                    ASUSErclog(ASUS_OUTPUT_OVP, "BAT_OVP  is triggered");
+                }
 				goto done;
 			}
 		}
-	}
+	} else {
+        chg->asus_chg->bat_ovp_flag = false;
+    }
 
 	if (stat & BAT_TEMP_STATUS_TOO_COLD_BIT)
 		val->intval = POWER_SUPPLY_HEALTH_COLD;
@@ -1934,8 +2126,13 @@ int smblib_get_prop_batt_health(struct smb_charger *chg,
 		val->intval = POWER_SUPPLY_HEALTH_OVERHEAT;
 	else if (stat & BAT_TEMP_STATUS_COLD_SOFT_LIMIT_BIT)
 		val->intval = POWER_SUPPLY_HEALTH_COOL;
-	else if (stat & BAT_TEMP_STATUS_HOT_SOFT_LIMIT_BIT)
+	else if (stat & BAT_TEMP_STATUS_HOT_SOFT_LIMIT_BIT) {
 		val->intval = POWER_SUPPLY_HEALTH_WARM;
+        if (chg->asus_chg->jeita_stop_charge_flag) {
+            val->intval = POWER_SUPPLY_HEALTH_OVERHEAT;
+            CHG_DBG("%s: report overheat in 50-60 deg when jeita stop charging\n", __func__);
+        }
+    }
 	else
 		val->intval = POWER_SUPPLY_HEALTH_GOOD;
 
@@ -2392,6 +2589,8 @@ int smblib_get_prop_usb_online(struct smb_charger *chg,
 {
 	int rc = 0;
 	u8 stat;
+	int cc_present;
+	u8 reg = 0;
 
 	if (get_client_vote_locked(chg->usb_icl_votable, USER_VOTER) == 0) {
 		val->intval = false;
@@ -2407,8 +2606,37 @@ int smblib_get_prop_usb_online(struct smb_charger *chg,
 	smblib_dbg(chg, PR_REGISTER, "POWER_PATH_STATUS = 0x%02x\n",
 		   stat);
 
-	val->intval = (stat & USE_USBIN_BIT) &&
-		      (stat & VALID_INPUT_POWER_SOURCE_STS_BIT);
+	rc = smblib_read(chg, TYPE_C_STATUS_4_REG, &reg);
+	cc_present = reg & CC_ATTACHED_BIT;
+
+	if (chg->asus_chg->asus_adapter_detecting_flag && (chg->asus_chg->usb_connector_event == OTP_NOT_TRIGGER))
+		val->intval = 1;
+	else if (g_charger_mode && chg->asus_chg->usb_connector_event) {
+		val->intval = cc_present;
+		if(val->intval == 1) {
+			CHG_DBG("force reporting online(%d) due to alert:%d\n", cc_present, chg->asus_chg->usb_connector_event);
+		}
+	}
+	else if (g_ubatterylife_enable_flag){
+		val->intval = cc_present;
+		if(val->intval == 1) {
+			CHG_DBG("force reporting online(%d) due to g_ubatterylife_enable_flag:%d\n", cc_present, g_ubatterylife_enable_flag);
+		}
+	}
+    else if (g_charger_mode && chg->asus_chg->legacy_detecting_flag) {
+        val->intval = 1;
+    }
+//    else if (g_charger_mode && chg->pd_hard_reset) {
+    else if (chg->pd_hard_reset) {
+//        val->intval = cc_present;
+        val->intval = 1;
+//        if(val->intval == 1) {
+            CHG_DBG("force reporting online(%d) due to pd hard reset:%d\n", cc_present, chg->pd_hard_reset);
+//        }
+    }
+	else
+		val->intval = (stat & USE_USBIN_BIT) &&
+			(stat & VALID_INPUT_POWER_SOURCE_STS_BIT);
 	return rc;
 }
 
@@ -2545,7 +2773,7 @@ static const char * const smblib_typec_mode_name[] = {
 	[POWER_SUPPLY_TYPEC_POWERED_CABLE_ONLY]   = "POWERED_CABLE_ONLY",
 };
 
-static int smblib_get_prop_ufp_mode(struct smb_charger *chg)
+int smblib_get_prop_ufp_mode(struct smb_charger *chg)
 {
 	switch (chg->typec_status[0]) {
 	case UFP_TYPEC_RDSTD_BIT:
@@ -2769,6 +2997,11 @@ static int smblib_handle_usb_current(struct smb_charger *chg,
 			 */
 			typec_mode = smblib_get_prop_typec_mode(chg);
 			rp_ua = get_rp_based_dcp_current(chg, typec_mode);
+            // force 500mA for legacy cable or non-legacy std with float charger
+            if (chg->asus_chg->legacy_cable_flag || (POWER_SUPPLY_TYPEC_SOURCE_DEFAULT == typec_mode)) {
+                rp_ua = SDP_CURRENT_UA;
+                CHG_DBG("%s: force 500mA for legacy cable or non-legacy std with float charger\n", __func__);
+            }
 			rc = vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER,
 								true, rp_ua);
 			if (rc < 0)
@@ -2885,6 +3118,9 @@ static int __smblib_set_prop_pd_active(struct smb_charger *chg, bool pd_active)
 	int rc;
 	bool orientation, sink_attached, hvdcp;
 	u8 stat;
+//	static bool scheduled = false;
+
+	CHG_DBG("%s: pd_active = %d\n", __func__, pd_active);
 
 	chg->pd_active = pd_active;
 	if (chg->pd_active) {
@@ -2967,8 +3203,13 @@ static int __smblib_set_prop_pd_active(struct smb_charger *chg, bool pd_active)
 		sink_attached = chg->typec_status[3] & UFP_DFP_MODE_STATUS_BIT;
 		if ((chg->connector_type != POWER_SUPPLY_CONNECTOR_MICRO_USB)
 				&& !chg->typec_legacy_valid
-				&& !sink_attached && hvdcp)
+				&& !sink_attached && hvdcp && false)
 			schedule_work(&chg->legacy_detection_work);
+		// for typeC 1.5A COS issue
+//		else if(!chg->typec_legacy_valid && !sink_attached && !scheduled) {
+//			schedule_delayed_work(&chg->asus_chg->legacy_det_work, 0);
+//			scheduled = true;
+//		}
 	}
 
 	smblib_update_usb_type(chg);
@@ -3142,6 +3383,8 @@ int smblib_set_prop_pd_in_hard_reset(struct smb_charger *chg,
 		return rc;
 
 	chg->pd_hard_reset = val->intval;
+    CHG_DBG("%s: pd_hard_reset = %d\n", __func__, chg->pd_hard_reset);
+    ASUSEvtlog("[CHG] pd_hard_reset = %d\n", chg->pd_hard_reset);
 	rc = smblib_masked_write(chg, TYPE_C_INTRPT_ENB_SOFTWARE_CTRL_REG,
 			EXIT_SNK_BASED_ON_CC_BIT,
 			(chg->pd_hard_reset) ? EXIT_SNK_BASED_ON_CC_BIT : 0);
@@ -3157,7 +3400,7 @@ int smblib_set_prop_pd_in_hard_reset(struct smb_charger *chg,
 
 static int smblib_recover_from_soft_jeita(struct smb_charger *chg)
 {
-	u8 stat_1, stat_2;
+	u8 stat_1, stat_2, stat;
 	int rc;
 
 	rc = smblib_read(chg, BATTERY_CHARGER_STATUS_1_REG, &stat_1);
@@ -3180,17 +3423,24 @@ static int smblib_recover_from_soft_jeita(struct smb_charger *chg)
 		 * We are moving from JEITA soft -> Normal and charging
 		 * is terminated
 		 */
-		rc = smblib_write(chg, CHARGING_ENABLE_CMD_REG, 0);
+        CHG_DBG("%s: moving from JEITA soft -> Normal, trigger recharge\n", __func__);
+		rc = smblib_read(chg, CHGR_CFG2_REG, &stat);
 		if (rc < 0) {
-			smblib_err(chg, "Couldn't disable charging rc=%d\n",
-						rc);
+			smblib_err(chg, "Couldn't read CHGR_CFG2_REG rc=%d\n", rc);
 			return rc;
 		}
-		rc = smblib_write(chg, CHARGING_ENABLE_CMD_REG,
-						CHARGING_ENABLE_CMD_BIT);
+
+		//~ rc = smblib_write(chg, CHARGING_ENABLE_CMD_REG, 0);
+		rc = smblib_write(chg, CHARGING_ENABLE_CMD_REG, (stat & CHG_EN_POLARITY_BIT) ? CHARGING_ENABLE_CMD_BIT : 0);
 		if (rc < 0) {
-			smblib_err(chg, "Couldn't enable charging rc=%d\n",
-						rc);
+			smblib_err(chg, "Couldn't disable charging rc=%d\n", rc);
+			return rc;
+		}
+		//~ rc = smblib_write(chg, CHARGING_ENABLE_CMD_REG,
+						//~ CHARGING_ENABLE_CMD_BIT);
+		rc = smblib_write(chg, CHARGING_ENABLE_CMD_REG, (stat & CHG_EN_POLARITY_BIT) ? 0 : CHARGING_ENABLE_CMD_BIT);
+		if (rc < 0) {
+			smblib_err(chg, "Couldn't enable charging rc=%d\n", rc);
 			return rc;
 		}
 	}
@@ -3341,6 +3591,9 @@ irqreturn_t smblib_handle_debug(int irq, void *data)
 	struct smb_charger *chg = irq_data->parent_data;
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
+	if (!strncmp(irq_data->name, "aicl-fail", 9)) {
+        CHG_DBG("aicl-fail is triggered\n");
+    }
 	return IRQ_HANDLED;
 }
 
@@ -3398,6 +3651,8 @@ irqreturn_t smblib_handle_batt_temp_changed(int irq, void *data)
 	struct smb_charger *chg = irq_data->parent_data;
 	int rc;
 
+	asus_check_batt_health(chg);
+
 	rc = smblib_recover_from_soft_jeita(chg);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't recover chg from soft jeita rc=%d\n",
@@ -3416,6 +3671,12 @@ irqreturn_t smblib_handle_batt_psy_changed(int irq, void *data)
 	struct smb_charger *chg = irq_data->parent_data;
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
+	if (!strncmp(irq_data->name, "bat-low", 7))
+		ASUSEvtlog("[BAT] Low Voltage");
+	if (!strncmp(irq_data->name, "bat-ov", 6)) {
+		CHG_DBG_E("BAT_OVP  is triggered\n");
+		//ASUSErclog(ASUS_OUTPUT_OVP, "BAT_OVP  is triggered");
+	}
 	power_supply_changed(chg->batt_psy);
 	return IRQ_HANDLED;
 }
@@ -3535,6 +3796,8 @@ void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 		}
 	}
 
+    asus_usb_plugin_flow(chg, vbus_rising);
+
 	power_supply_changed(chg->usb_psy);
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: usbin-plugin %s\n",
 					vbus_rising ? "attached" : "detached");
@@ -3603,6 +3866,8 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 
 	if (chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB)
 		smblib_micro_usb_plugin(chg, vbus_rising);
+
+    asus_usb_plugin_flow(chg, vbus_rising);
 
 	power_supply_changed(chg->usb_psy);
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: usbin-plugin %s\n",
@@ -3796,6 +4061,10 @@ static void smblib_handle_hvdcp_3p0_auth_done(struct smb_charger *chg,
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: hvdcp-3p0-auth-done rising; %s detected\n",
 		   apsd_result->name);
+    if (POWER_SUPPLY_TYPE_USB_HVDCP_3 == apsd_result->pst) {
+        CHG_DBG("%s: run asus_hvdcp3_wa, apsd_result=%s\n", __func__, apsd_result->name);
+        asus_hvdcp3_wa(chg);
+    }
 }
 
 static void smblib_handle_hvdcp_check_timeout(struct smb_charger *chg,
@@ -3849,7 +4118,7 @@ static void smblib_handle_hvdcp_detect_done(struct smb_charger *chg,
 static void smblib_force_legacy_icl(struct smb_charger *chg, int pst)
 {
 	int typec_mode;
-	int rp_ua;
+//	int rp_ua;
 
 	/* while PD is active it should have complete ICL control */
 	if (chg->pd_active)
@@ -3868,26 +4137,32 @@ static void smblib_force_legacy_icl(struct smb_charger *chg, int pst)
 		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, false, 0);
 		break;
 	case POWER_SUPPLY_TYPE_USB_CDP:
+        CHG_DBG("%s: vote 1500mA for legacy CDP icl\n", __func__);
 		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 1500000);
 		break;
 	case POWER_SUPPLY_TYPE_USB_DCP:
 		typec_mode = smblib_get_prop_typec_mode(chg);
-		rp_ua = get_rp_based_dcp_current(chg, typec_mode);
-		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, rp_ua);
+//		rp_ua = get_rp_based_dcp_current(chg, typec_mode);
+//		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, rp_ua);
+        CHG_DBG("%s: vote 1000mA for legacy DCP icl\n", __func__);
+		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 1000000);
 		break;
 	case POWER_SUPPLY_TYPE_USB_FLOAT:
 		/*
 		 * limit ICL to 100mA, the USB driver will enumerate to check
 		 * if this is a SDP and appropriately set the current
 		 */
+        CHG_DBG("%s: vote 100mA for legacy FLOAT icl\n", __func__);
 		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 100000);
 		break;
 	case POWER_SUPPLY_TYPE_USB_HVDCP:
 	case POWER_SUPPLY_TYPE_USB_HVDCP_3:
-		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 3000000);
+        CHG_DBG("%s: vote 1000mA for legacy HVDCP icl\n", __func__);
+		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 1000000);
 		break;
 	default:
 		smblib_err(chg, "Unknown APSD %d; forcing 500mA\n", pst);
+        CHG_DBG("%s: vote 500mA for legacy UNKNOWN icl\n", __func__);
 		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 500000);
 		break;
 	}
@@ -3934,7 +4209,7 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 
 	apsd_result = smblib_update_usb_type(chg);
 
-	if (!chg->typec_legacy_valid)
+	if (!chg->typec_legacy_valid && !asus_flow_done_flag && false)
 		smblib_force_legacy_icl(chg, apsd_result->pst);
 
 	switch (apsd_result->bit) {
@@ -3961,6 +4236,11 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 	default:
 		break;
 	}
+
+    if (chg->asus_chg->vbus_rising_flag) {
+        asus_log_chg_mode(apsd_result->bit);
+        chg->asus_chg->vbus_rising_flag =false;
+    }
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: apsd-done rising; %s detected\n",
 		   apsd_result->name);
@@ -4182,7 +4462,7 @@ try_sink_exit:
 
 	return exit_mode;
 }
-
+extern void set_otg_current_to_1p5A_needrestore(int flag);
 static void typec_sink_insertion(struct smb_charger *chg)
 {
 	int exit_mode;
@@ -4208,6 +4488,18 @@ static void typec_sink_insertion(struct smb_charger *chg)
 		smblib_notify_usb_host(chg, true);
 		chg->otg_present = true;
 	}
+
+	if (chip_dev->chg.asus_chg->usb_connector_event > 0) {
+		if (g_asus_hw_id > 2) { // do thermal alert action after ER
+			// Disable otg
+			smblib_vbus_regulator_disable(chg->vbus_vreg->rdev);
+			return;
+		}
+	}
+
+	//ASUS BSP ADD for 1.5A otg output at begin ---
+	set_otg_current_to_1p5A_needrestore(1);
+	//ASUS BSP ADD for 1.5A otg output at begin ---
 }
 
 static void typec_sink_removal(struct smb_charger *chg)
@@ -4215,6 +4507,10 @@ static void typec_sink_removal(struct smb_charger *chg)
 	smblib_set_charge_param(chg, &chg->param.freq_boost,
 			chg->chg_freq.freq_above_otg_threshold);
 	chg->boost_current_ua = 0;
+
+	//ASUS BSP ADD for 1.5A otg output at begin +++
+	set_otg_current_to_1p5A_needrestore(0);
+    //ASUS BSP ADD for 1.5A otg output at begin ---
 }
 
 static void smblib_handle_typec_removal(struct smb_charger *chg)
@@ -4343,11 +4639,20 @@ static void smblib_handle_typec_removal(struct smb_charger *chg)
 
 	chg->is_audio_adapter = false;
 
-	/* enable DRP */
-	val.intval = POWER_SUPPLY_TYPEC_PR_DUAL;
-	rc = smblib_set_prop_typec_power_role(chg, &val);
-	if (rc < 0)
-		smblib_err(chg, "Couldn't enable DRP rc=%d\n", rc);
+    if (!chg->asus_chg->cdp_high_wa_flag) {
+        /* enable DRP */
+        val.intval = POWER_SUPPLY_TYPEC_PR_DUAL;
+        rc = smblib_set_prop_typec_power_role(chg, &val);
+        if (rc < 0)
+            smblib_err(chg, "Couldn't enable DRP rc=%d\n", rc);
+    } else {
+        // force UFP when pon first det CDP
+        val.intval = POWER_SUPPLY_TYPEC_PR_SINK;
+        rc = smblib_set_prop_typec_power_role(chg, &val);
+        if (rc < 0)
+            smblib_err(chg, "Couldn't enable UFP rc=%d\n", rc);
+        chg->asus_chg->cdp_high_wa_flag = false;
+    }
 
 	/* HW controlled CC_OUT */
 	rc = smblib_masked_write(chg, TAPER_TIMER_SEL_CFG_REG,
@@ -4391,6 +4696,8 @@ unlock:
 			smblib_notify_device_mode(chg, false);
 	}
 	chg->otg_present = false;
+    if (chg->asus_chg->pon_cable_det_flag)
+        chg->asus_chg->pon_cable_det_flag = false;
 }
 
 static void smblib_handle_typec_insertion(struct smb_charger *chg)
@@ -4451,6 +4758,7 @@ static void smblib_handle_rp_change(struct smb_charger *chg, int typec_mode)
 						chg->typec_mode, typec_mode);
 
 	rp_ua = get_rp_based_dcp_current(chg, typec_mode);
+    CHG_DBG("%s: rp_ua = %d\n", __func__, rp_ua);
 	vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, rp_ua);
 }
 
@@ -4469,12 +4777,14 @@ static void smblib_handle_typec_cc_state_change(struct smb_charger *chg)
 
 	if (!chg->typec_present && chg->typec_mode != POWER_SUPPLY_TYPEC_NONE) {
 		chg->typec_present = true;
+		printk("[USB]TypeC %s insertion\n",smblib_typec_mode_name[chg->typec_mode]);//ASUS BSP +++
 		smblib_dbg(chg, PR_MISC, "TypeC %s insertion\n",
 			smblib_typec_mode_name[chg->typec_mode]);
 		smblib_handle_typec_insertion(chg);
 	} else if (chg->typec_present &&
 				chg->typec_mode == POWER_SUPPLY_TYPEC_NONE) {
 		chg->typec_present = false;
+		printk("[USB]TypeC removal\n");//ASUS BSP +++
 		smblib_dbg(chg, PR_MISC, "TypeC removal\n");
 		smblib_handle_typec_removal(chg);
 	}
@@ -4485,6 +4795,9 @@ static void smblib_handle_typec_cc_state_change(struct smb_charger *chg)
 		vote(chg->usb_icl_votable, OTG_VOTER, true, 0);
 	else
 		vote(chg->usb_icl_votable, OTG_VOTER, false, 0);
+
+    if (!chg->typec_present && chg->asus_chg->pon_cable_det_flag)
+        chg->asus_chg->pon_cable_det_flag =false;
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: cc-state-change; Type-C %s detected\n",
 				smblib_typec_mode_name[chg->typec_mode]);
@@ -5047,6 +5360,9 @@ static void smblib_legacy_detection_work(struct work_struct *work)
 	u8 stat;
 	bool legacy, rp_high;
 
+	CHG_DBG("%s: enter\n", __func__);
+	chg->asus_chg->legacy_detecting_flag = true;
+
 	mutex_lock(&chg->lock);
 	chg->typec_en_dis_active = 1;
 	smblib_dbg(chg, PR_MISC, "running legacy unknown workaround\n");
@@ -5086,6 +5402,19 @@ static void smblib_legacy_detection_work(struct work_struct *work)
 	if (!legacy || !rp_high)
 		vote(chg->hvdcp_disable_votable_indirect, VBUS_CC_SHORT_VOTER,
 								false, 0);
+
+	g_legacy_det_done = true;
+	chg->asus_chg->asus_adapter_detecting_flag = false;
+	CHG_DBG("%s: legacy workaround done legacy = %d rp_high = %d\n", __func__, legacy, rp_high);
+    if (g_charger_mode) {
+        ASUSEvtlog("%s: legacy workaround done legacy = %d rp_high = %d\n", __func__, legacy, rp_high);
+    }
+
+	if(0 == chg->asus_chg->asus_qc_flag){
+		chg->asus_chg->legacy_cable_flag = legacy;
+		CHG_DBG(" rerun legacy for non-QC TypeC 1.5A/3A, result %d\n", chg->asus_chg->legacy_cable_flag);
+	}
+	chg->asus_chg->legacy_detecting_flag = false;
 
 unlock:
 	chg->typec_en_dis_active = 0;

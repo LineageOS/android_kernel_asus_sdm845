@@ -1752,6 +1752,8 @@ static void __init fw_cache_init(void)
 	register_pm_notifier(&fw_cache.pm_notify);
 
 	register_syscore_ops(&fw_syscore_ops);
+	strcpy(fw_path_para, "/vendor/etc/firmware/ZS620KL");
+    printk("fw_cache_init fw_path_para after: %s\n", fw_path_para);
 #endif
 }
 

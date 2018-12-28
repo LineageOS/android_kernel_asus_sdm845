@@ -730,6 +730,16 @@ ifeq ($(shell $(CONFIG_SHELL) $(srctree)/scripts/gcc-goto.sh $(CC) $(KBUILD_CFLA
 	KBUILD_AFLAGS += -DCC_HAVE_ASM_GOTO
 endif
 
+#ASUS bsp add Factory macro+++
+ifeq ($(FACTORY),1)
+		KBUILD_CFLAGS += -DASUS_FACTORY_BUILD=1
+endif
+#ASUS bsp add Factory macro---
+
+ifeq ($(TARGET_BUILD_VARIANT),userdebug)
+		KBUILD_CFLAGS += -DASUS_USERDEBUG_BUILD=1
+endif
+
 include scripts/Makefile.gcc-plugins
 
 ifdef CONFIG_READABLE_ASM
@@ -899,6 +909,12 @@ KBUILD_CFLAGS   += $(call cc-option,-Werror=incompatible-pointer-types)
 
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
+
+ifneq ($(BUILD_NUMBER),)
+        KBUILD_CPPFLAGS += -DASUS_SW_VER=\"$(BUILD_NUMBER)\"
+else
+        KBUILD_CPPFLAGS += -DASUS_SW_VER=\"$(ASUS_BUILD_PROJECT)_ENG\"
+endif
 
 include scripts/Makefile.kasan
 include scripts/Makefile.extrawarn

@@ -1,0 +1,319 @@
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&pm8998_l9 {
+    qcom,init-voltage = <1800000>;
+};
+
+&pm8998_l10 {
+    qcom,init-voltage = <1800000>;
+};
+
+&pm8998_l13 {
+    qcom,init-voltage = <2960000>;
+};
+
+&pm8998_l19 {
+    qcom,init-voltage = <3008000>;
+};
+
+&pm8998_l20 {
+    qcom,init-voltage = <2960000>;
+};
+
+&pm8998_l21 {
+    qcom,init-voltage = <2960000>;
+};
+
+&pm8998_l23 {
+    qcom,init-voltage = <3312000>;
+};
+
+&pm8998_l25 {
+    qcom,init-voltage = <3312000>;
+};
+
+&pm8998_l28 {
+    regulator-min-microvolt = <1800000>;
+    qcom,init-voltage = <1800000>;
+};
+
+&tlmm {
+/* ASUS_BSP steven1_wang: add for asus adapter adc +++ */
+    asp1690_int {
+        asp1690_int_default: asp1690_int_default {
+            mux {
+                pins = "gpio43";
+                function = "gpio";
+            };
+
+            config {
+                pins = "gpio43";
+                drive-strength = <2>;
+                bias-disable;
+            };
+        };
+    };
+/* ASUS_BSP steven1_wang: add for asus adapter adc --- */
+};
+
+&pm8998_gpios {
+/* ASUS_BSP steven1_wang: add for water detection adc +++ */
+       water_detection_adc {
+               water_detection_adc_default: water_detection_adc_default {
+                       pins = "gpio12";
+                       function = "normal";
+                       bias-high-impedance; /* DISABLE GPIO13 for ADC*/
+               };
+       };
+/* ASUS_BSP steven1_wang: add for water detection adc --- */
+};
+
+&pmi8998_gpios {
+	qnovo_fet_ctrl {
+		qnovo_fet_ctrl_default: qnovo_fet_ctrl_default {
+			/delete-property/output-low;
+			/delete-property/input-disable;
+			input-enable;
+			power-source = <1>;
+		};
+	};
+
+	usb2_vbus_det {
+		usb2_vbus_det_default: usb2_vbus_det_default {
+			/delete-property/bias-pull-down;
+			bias-disable;
+		};
+	};
+
+/* ASUS_BSP steven1_wang: add for asus adapter adc +++ */
+    pw_adc_en {
+        pw_adc_en_default: pw_adc_en_default {
+            pins = "gpio14";
+            function = "normal";
+            output-low;
+            bias-disable;
+        };
+    };
+/* ASUS_BSP steven1_wang: add for asus adapter adc +++ */
+};
+
+
+&pm8998_vadc {
+/* ASUS_BSP steven1_wang: add for water detection adc +++ */
+       chan@76 {
+               label = "water_detection_adc";
+               reg = <0x76>;
+               qcom,decimation = <2>;
+               qcom,pre-div-channel-scaling = <0>;
+               qcom,calibration-type = "absolute";
+               qcom,scale-function = <0>;
+               qcom,hw-settle-time = <2>;
+               qcom,fast-avg-setup = <0>;
+               qcom,cal-val = <0>;
+       };
+/* ASUS_BSP steven1_wang: add for water detection adc --- */
+
+/* ASUS_BSP guochang: add for pm845 adc +++ */
+	chan@4e {
+		label = "ufs_therm";
+		reg = <0x4e>;
+		qcom,decimation = <2>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@50 {
+		label = "pa_therm2";
+		reg = <0x50>;
+		qcom,decimation = <2>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+/* ASUS_BSP guochang: add for pm845 adc --- */
+};
+
+&pm8998_adc_tm {
+/* ASUS_BSP steven1_wang: add for water detection adc +++ */
+       chan@76 {
+               label = "water_detection_adc_tm";
+               reg = <0x76>;
+               qcom,pre-div-channel-scaling = <0>;
+               qcom,calibration-type = "absolute";
+               qcom,scale-function = <0>;
+               qcom,hw-settle-time = <2>;
+               qcom,btm-channel-number = <0x98>;
+       };
+/* ASUS_BSP steven1_wang: add for water detection adc --- */
+
+/* ASUS_BSP guochang: add for pm845 adc +++ */
+	chan@4e {
+		label = "ufs_therm";
+		reg = <0x4e>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,btm-channel-number = <0x88>;
+		qcom,thermal-node;
+	};
+
+	chan@50 {
+		label = "pa_therm2";
+		reg = <0x50>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,btm-channel-number = <0x90>;
+		qcom,thermal-node;
+	};
+/* ASUS_BSP guochang: add for pm845 adc --- */
+};
+
+/* ASUS_BSP guochang: add for pm845 adc +++ */
+&thermal_zones{
+	ufs-therm-adc {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pm8998_adc_tm 0x4e>;
+		thermal-governor = "user_space";
+
+		trips {
+			active-config0 {
+				temperature = <65000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+		};
+	};
+
+	pa-therm2-adc {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pm8998_adc_tm 0x50>;
+		thermal-governor = "user_space";
+
+		trips {
+			active-config0 {
+				temperature = <65000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+		};
+	};
+};
+
+/* ASUS_BSP guochang: add for pm845 adc --- */
+
+&pmi8998_fg {
+/* ASUS_BSP steven1_wang: add for water detection adc +++ */
+       pinctrl-names = "default";
+       pinctrl-0 = <&water_detection_adc_default>;
+       qcom,water-detection-vadc = <&pm8998_vadc>;
+       qcom,water-detection-adc_tm = <&pm8998_adc_tm>;
+/* ASUS_BSP steven1_wang: add for water detection adc --- */
+
+    qcom,fg-force-load-profile;
+    qcom,fg-recharge-voltage = <4150>;
+    qcom,fg-cutoff-voltage = <3400>;
+    qcom,fg-empty-voltage = <2600>;
+    qcom,fg-chg-term-current = <100>;
+    qcom,fg-sys-term-current = <(-150)>;
+    qcom,fg-jeita-hyst-temp = <3>;
+    qcom,fg-jeita-thresholds = <0 10 50 60>;
+    qcom,battery-thermal-coefficients = [A1 50 FF];
+    /* add for low temp gauge accuracy */
+    qcom,fg-esr-tight-filter-micro-pct = <20000>;
+    qcom,fg-esr-broad-filter-micro-pct = <20000>;
+    qcom,fg-esr-tight-lt-filter-micro-pct = <20000>;
+    qcom,fg-esr-broad-lt-filter-micro-pct = <20000>;
+    qcom,slope-limit-coeffs = <1 1 1 1>;
+    qcom,fg-cutoff-current = <100>;
+    qcom,fg-rconn-mohms = <0>;
+/*ASUS_BSP set fg-rsense-sel to 0 due to no smb chip in Draco +++*/
+    qcom,fg-rsense-sel = <0>;
+/*ASUS_BSP set fg-rsense-sel to 0 due to no smb chip in Draco +++*/
+	qcom,ki-coeff-hi-chg = <733>;
+
+	qcom,linearize-soc;
+	qcom,fg-recharge-soc-thr = <98>;
+/*ASUS_BSP: set lowest esr to 92 mohm to prevent ADC measurement corruption +++*/
+	qcom,fg-esr-clamp-mohms = <92>;
+/*ASUS_BSP: set lowest esr to 92 mohm to prevent ADC measurement corruption ---*/
+
+/*ASUS_BSP: fine tune SoC discharge accuracy at low temperature +++*/
+	asus,ki-coeff-cutoff = <4395>;
+/*ASUS_BSP: fine tune SoC discharge accuracy at low temperature ---*/
+};
+
+&camera_rear_ldo {
+/* ASUS_BSP steven1_wang: add for water detection adc +++ */
+    status = "disabled";
+/* ASUS_BSP steven1_wang: add for water detection adc --- */
+};
+
+/* ASUS_BSP steven1_wang: add battery profile for draco +++ */
+&mtp_batterydata {
+    /delete-node/ qcom,itech_3000mah;
+    /delete-node/ qcom,ascent_3450mah;
+    /delete-node/ qcom,demo_6000mah;
+    #include "3282511_Asus_C11P1708_3150mAh_4p357V_averaged_MasterSlave_Nov11th2018_R2_PMI8998GUI20058.dtsi"
+    #include "3282511_Asus_C11P1708_3150mAh_4p3V_averaged_MasterSlave_May7th2018_PMI8998GUI20058_Sys_And_Profile.dtsi"
+    #include "3282511_Asus_C11P1708_3150mAh_4p25V_averaged_MasterSlave_May7th2018_PMI8998GUI20058_Sys_And_Profile.dtsi"
+};
+/* ASUS_BSP steven1_wang: add battery profile for draco --- */
+
+&pmi8998_charger {
+/* ASUS_BSP steven1_wang: add for asus adapter adc +++ */
+        asp1690_int = <&tlmm 43 0>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&asp1690_int_default>;
+/* ASUS_BSP steven1_wang: add for asus adapter adc --- */
+
+        io-channels = <&pmi8998_rradc 8>,
+                  <&pmi8998_rradc 10>,
+                  <&pmi8998_rradc 3>,
+                  <&pmi8998_rradc 4>,
+                  <&pmi8998_rradc 2>;
+        io-channel-names = "charger_temp",
+                   "charger_temp_max",
+                   "usbin_i",
+                   "usbin_v",
+                   "aux_therm";
+
+        bob-supply = <&pmi8998_bob>;
+        bob_ao-supply = <&pmi8998_bob_ao>;
+};
+
+&qupv3_se10_i2c {
+/* ASUS_BSP steven1_wang: add for asus adapter adc +++ */
+    asp1690@39 {
+        compatible = "asp1690-adc";
+        reg = <0x39>;
+        asp1690_adc_en = <&pmi8998_gpios 14 GPIO_ACTIVE_LOW>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&pw_adc_en_default>;
+    };
+/* ASUS_BSP steven1_wang: add for asus adapter adc --- */
+};
+
+&pcie0 {
+	status = "disabled";
+};
+
+&soc {
+    rpmh-regulator-bobb1 {
+        qcom,supported-modes =
+            <RPMH_REGULATOR_MODE_PASS
+             RPMH_REGULATOR_MODE_AUTO
+             RPMH_REGULATOR_MODE_HPM>;
+        qcom,mode-threshold-currents = <0 1 2>;
+    };
+};
+

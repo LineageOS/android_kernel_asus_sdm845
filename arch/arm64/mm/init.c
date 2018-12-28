@@ -397,6 +397,8 @@ static void __init free_unused_memmap(void)
 }
 #endif	/* !CONFIG_SPARSEMEM_VMEMMAP */
 
+u64 g_ASUS_kernel_offset;
+
 /*
  * mem_init() marks the free areas in the mem_map and tells us how much memory
  * is free.  This is done after various parts of the system have claimed their
@@ -485,6 +487,9 @@ void __init mem_init(void)
 		 */
 		sysctl_overcommit_memory = OVERCOMMIT_ALWAYS;
 	}
+
+	g_ASUS_kernel_offset = (u64)((u64)_text - VMALLOC_START - 0x80000);
+	printk("[ASUS][MEM] 0x%16llx \n",g_ASUS_kernel_offset);
 }
 
 void free_initmem(void)

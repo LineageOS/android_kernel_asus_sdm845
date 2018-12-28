@@ -150,6 +150,15 @@ static int msm_pinmux_set_mux(struct pinctrl_dev *pctldev,
 	int i;
 
 	g = &pctrl->soc->groups[group];
+	#if defined(CONFIG_SERIAL_CORE_CONSOLE) || defined(CONFIG_CONSOLE_POLL)
+
+	#else
+	if(group == 4 ||group == 5)
+	{
+		printk("user version other module don't config uart gpio\n");
+		return 0;
+	}
+	#endif
 	mask = GENMASK(g->mux_bit + order_base_2(g->nfuncs) - 1, g->mux_bit);
 
 	for (i = 0; i < g->nfuncs; i++) {
@@ -281,6 +290,26 @@ static int msm_config_group_get(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
+#if defined(CONFIG_SERIAL_CORE_CONSOLE) || defined(CONFIG_CONSOLE_POLL)
+
+#else
+static int asus_config_gpio_nc_set(struct gpio_chip *chip,unsigned offset)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = gpiochip_get_data(chip);
+	unsigned long flags;
+	u32 val;
+	g = &pctrl->soc->groups[offset];
+
+	spin_lock_irqsave(&pctrl->lock, flags);
+	val = (0x1); //input pull down,
+	writel(val, pctrl->regs + g->ctl_reg);
+	spin_unlock_irqrestore(&pctrl->lock, flags);
+
+	return 0;
+}
+#endif
+
 static int msm_config_group_set(struct pinctrl_dev *pctldev,
 				unsigned group,
 				unsigned long *configs,
@@ -298,6 +327,18 @@ static int msm_config_group_set(struct pinctrl_dev *pctldev,
 	int i;
 
 	g = &pctrl->soc->groups[group];
+
+
+	#if defined(CONFIG_SERIAL_CORE_CONSOLE) || defined(CONFIG_CONSOLE_POLL)
+
+	#else
+	if(group == 4 ||group == 5)
+	{
+		printk("user version other module don't config uart gpio\n");
+		return 0;
+	}
+	#endif
+
 
 	for (i = 0; i < num_configs; i++) {
 		param = pinconf_to_config_param(configs[i]);
@@ -505,6 +546,10 @@ static void msm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 	unsigned i;
 
 	for (i = 0; i < chip->ngpio; i++, gpio++) {
+		if ((i >= 0 && i <= 3) || (i >= 81 && i <= 84)) {
+			seq_printf(s, " gpio%d tz protected gpio, skip \n",i);
+			continue;
+		}
 		msm_gpio_dbg_show_one(s, NULL, chip, i, gpio);
 		seq_puts(s, "\n");
 	}
@@ -1563,6 +1608,13 @@ static int msm_gpio_init(struct msm_pinctrl *pctrl)
 				pctrl->irq, msm_gpio_irq_handler);
 
 	msm_gpio_setup_dir_connects(pctrl);
+
+	#if defined(CONFIG_SERIAL_CORE_CONSOLE) || defined(CONFIG_CONSOLE_POLL)
+
+	#else
+	asus_config_gpio_nc_set(chip,4);
+	asus_config_gpio_nc_set(chip,5);
+	#endif
 	return 0;
 }
 

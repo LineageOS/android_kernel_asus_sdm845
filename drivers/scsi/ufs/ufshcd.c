@@ -43,6 +43,8 @@
 #include <linux/nls.h>
 #include <linux/of.h>
 #include <linux/blkdev.h>
+#include <linux/proc_fs.h>
+
 #include "ufshcd.h"
 #include "ufshci.h"
 #include "ufs_quirks.h"
@@ -3445,6 +3447,7 @@ static int ufshcd_exec_dev_cmd(struct ufs_hba *hba,
 	int tag;
 	struct completion wait;
 	unsigned long flags;
+	bool has_read_lock = false;
 
 	/*
 	 * May get invoked from shutdown and IOCTL contexts.
@@ -3452,8 +3455,10 @@ static int ufshcd_exec_dev_cmd(struct ufs_hba *hba,
 	 * In error recovery context, it may come with lock acquired.
 	 */
 
-	if (!ufshcd_is_shutdown_ongoing(hba) && !ufshcd_eh_in_progress(hba))
+	if (!ufshcd_is_shutdown_ongoing(hba) && !ufshcd_eh_in_progress(hba)){
 		down_read(&hba->lock);
+		has_read_lock = true;
+	}
 
 	/*
 	 * Get free slot, sleep if slots are unavailable.
@@ -3486,7 +3491,7 @@ static int ufshcd_exec_dev_cmd(struct ufs_hba *hba,
 out_put_tag:
 	ufshcd_put_dev_cmd_tag(hba, tag);
 	wake_up(&hba->dev_cmd.tag_wq);
-	if (!ufshcd_is_shutdown_ongoing(hba) && !ufshcd_eh_in_progress(hba))
+	if (has_read_lock)
 		up_read(&hba->lock);
 	return err;
 }
@@ -3891,6 +3896,9 @@ int ufshcd_map_desc_id_to_length(struct ufs_hba *hba,
 	case QUERY_DESC_IDN_RFU_0:
 	case QUERY_DESC_IDN_RFU_1:
 		*desc_len = 0;
+		break;
+	case QUERY_DESC_IDN_RFU_2://health descriptor
+		*desc_len = 0x25;
 		break;
 	default:
 		*desc_len = 0;
@@ -7905,6 +7913,31 @@ static int ufs_read_device_desc_data(struct ufs_hba *hba)
 	return 0;
 }
 
+static int PreEOLInfo=0xff,healthA=0xff,healthB=0xff;
+void ufs_read_health_desc_data(struct ufs_hba *hba)
+{
+	int err;
+	u8 *desc_buf = NULL;
+	desc_buf = kmalloc(0x25, GFP_KERNEL);
+	if (!desc_buf) {
+		err = -ENOMEM;
+		dev_err(hba->dev,
+			"%s: Failed to allocate health desc_buf\n", __func__);
+		return;
+	}
+	err = ufshcd_read_desc(hba, 0x09, 0, desc_buf, sizeof(desc_buf));
+	if (err){
+		dev_err(hba->dev,
+			"%s: Failed to get health desc\n", __func__);
+		return;
+	}
+	printk("%s desc length 0x%x ID 0x%x\n",__func__,desc_buf[0],desc_buf[1]);
+	PreEOLInfo = desc_buf[2];
+	healthA = desc_buf[3];
+	healthB = desc_buf[4];
+	return;
+}
+
 static void ufshcd_init_desc_sizes(struct ufs_hba *hba)
 {
 	int err;
@@ -10541,6 +10574,98 @@ static void ufshcd_init_lanes_per_dir(struct ufs_hba *hba)
 		hba->lanes_per_direction = UFSHCD_DEFAULT_LANES_PER_DIRECTION;
 	}
 }
+
+static int PreEOLInfo_proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "0x%02x\n", PreEOLInfo);
+	return 0;
+}
+
+static int PreEOLInfo_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, PreEOLInfo_proc_show, NULL);
+}
+
+static const struct file_operations proc_ufs_PreEOLInfo = {
+	.open		= PreEOLInfo_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int healthA_proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "0x%02x\n", healthA);
+	return 0;
+}
+
+static int healthA_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, healthA_proc_show, NULL);
+}
+
+static const struct file_operations proc_ufs_healthA = {
+	.open		= healthA_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int healthB_proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "0x%02x\n", healthB);
+	return 0;
+}
+
+static int healthB_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, healthB_proc_show, NULL);
+}
+
+static const struct file_operations proc_ufs_healthB = {
+	.open		= healthB_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static struct proc_dir_entry *proc_ufs;
+
+int UFS_health_procfs(void)
+{
+	struct proc_dir_entry *pde;
+
+	proc_ufs = proc_mkdir("scsi/ufs", NULL);
+	if (!proc_ufs)
+		goto err1;
+
+	pde = proc_create("PreEOLInfo", 0, proc_ufs, &proc_ufs_PreEOLInfo);
+	if (!pde)
+		remove_proc_entry("PreEOLInfo", proc_ufs);
+	pde = proc_create("healthA", 0, proc_ufs, &proc_ufs_healthA);
+	if (!pde)
+		remove_proc_entry("healthA", proc_ufs);
+	pde = proc_create("healthB", 0, proc_ufs, &proc_ufs_healthB);
+	if (!pde)
+		remove_proc_entry("healthB", proc_ufs);
+
+	return 0;
+err1:
+	return -ENOMEM;
+}
+
+static void ufshcd_async_scan_and_read_health(void *data, async_cookie_t cookie)
+{
+	struct ufs_hba *hba = (struct ufs_hba *)data;
+
+	ufshcd_async_scan(data, cookie);
+
+	/* get health info from health descriptor */
+	ufs_read_health_desc_data(hba);
+	UFS_health_procfs();
+}
+
+
 /**
  * ufshcd_init - Driver initialization routine
  * @hba: per-adapter instance
@@ -10737,11 +10862,15 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 
 	ufshcd_cmd_log_init(hba);
 
-	async_schedule(ufshcd_async_scan, hba);
+	async_schedule(ufshcd_async_scan_and_read_health, hba);
 
 	ufsdbg_add_debugfs(hba);
 
 	ufshcd_add_sysfs_nodes(hba);
+
+	/* get health info from health descriptor */
+//	ufs_read_health_desc_data(hba);
+//	UFS_health_procfs();
 
 	return 0;
 

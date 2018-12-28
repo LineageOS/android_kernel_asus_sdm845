@@ -1,0 +1,216 @@
+&soc {
+	tlmm: pinctrl@03400000{
+		/* add pingrp for touchscreen */
+		pmx_ts_int_active {
+			ts_int_active: ts_int_active {
+				mux {
+					pins = "gpio125";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio125";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+		};
+
+		pmx_ts_int_suspend {
+			ts_int_suspend: ts_int_suspend {
+				mux {
+					pins = "gpio125";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio125";
+					drive-strength = <2>;
+					//bias-pull-down;
+					bias-disable;
+				};
+			};
+		};
+
+		pmx_ts_reset_active {
+			ts_reset_active: ts_reset_active {
+				mux {
+					pins = "gpio99";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio99";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+		};
+
+		pmx_ts_reset_suspend {
+			ts_reset_suspend: ts_reset_suspend {
+				mux {
+					pins = "gpio99";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio99";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		pmx_ts_release {
+			ts_release: ts_release {
+				mux {
+					pins = "gpio125", "gpio99";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio125", "gpio99";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		/* add pingrp for gpio_key */
+		tlmm_gpio_key {
+			gpio_key_active: gpio_key_active {
+				mux {
+					pins = "gpio103", "gpio123";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio103", "gpio123";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+
+			gpio_key_suspend: gpio_key_suspend {
+				mux {
+					pins = "gpio103", "gpio123";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio103", "gpio123";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+		};
+
+		/* add pingrp for Light+P sensor */
+		ap3045_irq_pin {
+			ap3045_default: ap3045_default {
+				mux {
+					pins = "gpio120";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio120";
+					drive-strength = <16>;
+					bias-pull-up;
+				};
+			};
+		};
+
+		sdhc_2_pin {
+			storage_cd: storage_cd {
+				config {
+					pins = "gpio126";
+					bias-disable;		/* NO pull */
+				};
+			};
+		};
+
+		cm36283_irq_pin {
+			cm36283_default: cm36283_default {
+				mux {
+					pins = "gpio120";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio120";
+					drive-strength = <16>;
+					bias-pull-up;
+				};
+			};
+		};
+		
+		/* add pingrp for RGB sensor */
+		tcs3400_irq_pin {
+			tcs3400_default: tcs3400_default {
+				mux {
+					pins = "gpio118";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio118";
+					drive-strength = <16>;
+					bias-pull-up;
+				};
+			};
+		};
+
+		//Remove sx9310 in ER and later stage
+		/* add irq pin for sx9310 sensor */
+		/*sx9310_intr {
+			sx9310_default: sx9310_default {
+				mux {
+					pins = "gpio24";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio24";
+					drive-strength = <16>;
+					bias-pull-up;
+					input-enable;
+				};
+			};
+		};*/
+
+		hall_int_pin {
+/*
+			qcom,pins = <&gp 124>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "hall_int_pin";
+*/
+			gpio_hall_active: gpio_hall_active {
+				mux {
+					pins = "gpio124";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio124";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+			gpio_hall_suspend: gpio_hall_suspend {
+				mux {
+					pins = "gpio124";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio124";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+	};
+};

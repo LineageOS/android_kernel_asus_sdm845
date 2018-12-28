@@ -320,7 +320,7 @@
 		qcom,nq-ven = <&tlmm 12 0x00>;
 		qcom,nq-firm = <&tlmm 62 0x00>;
 		qcom,nq-clkreq = <&pm8998_gpios 21 0x00>;
-		qcom,nq-esepwr = <&tlmm 116 0x00>;
+		/* qcom,nq-esepwr = <&tlmm 116 0x00>; */
 		interrupt-parent = <&tlmm>;
 		interrupts = <63 0>;
 		interrupt-names = "nfc_irq";

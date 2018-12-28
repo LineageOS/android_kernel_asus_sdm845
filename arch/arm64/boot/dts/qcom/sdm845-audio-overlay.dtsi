@@ -47,7 +47,7 @@
 
 	qcom,msm-mbhc-hphl-swh = <1>;
 	qcom,msm-mbhc-gnd-swh = <1>;
-	qcom,msm-mbhc-hs-mic-max-threshold-mv = <1700>;
+	qcom,msm-mbhc-hs-mic-max-threshold-mv = <2550>;
 	qcom,msm-mbhc-hs-mic-min-threshold-mv = <50>;
 	qcom,hph-en0-gpio = <&tavil_hph_en0>;
 	qcom,hph-en1-gpio = <&tavil_hph_en1>;
@@ -63,11 +63,6 @@
 	pinctrl-0 = <&wcd_usbc_analog_en2_active>;
 	pinctrl-1 = <&wcd_usbc_analog_en2_idle>;
 
-	qcom,wsa-max-devs = <2>;
-	qcom,wsa-devs = <&wsa881x_0211>, <&wsa881x_0212>,
-			<&wsa881x_0213>, <&wsa881x_0214>;
-	qcom,wsa-aux-dev-prefix = "SpkrLeft", "SpkrRight",
-				  "SpkrLeft", "SpkrRight";
 };
 
 &soc {
@@ -161,7 +156,7 @@
 					   "cdc-vddpx-1";
 
 		qcom,cdc-micbias1-mv = <1800>;
-		qcom,cdc-micbias2-mv = <1800>;
+		qcom,cdc-micbias2-mv = <2800>;
 		qcom,cdc-micbias3-mv = <1800>;
 		qcom,cdc-micbias4-mv = <1800>;
 

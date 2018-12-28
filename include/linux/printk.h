@@ -46,10 +46,10 @@ static inline const char *printk_skip_level(const char *buffer)
 
 extern int console_printk[];
 
-#define console_loglevel (console_printk[0])
-#define default_message_loglevel (console_printk[1])
-#define minimum_console_loglevel (console_printk[2])
-#define default_console_loglevel (console_printk[3])
+#define console_loglevel (console_printk[0]) //7
+#define default_message_loglevel (console_printk[1]) //7
+#define minimum_console_loglevel (console_printk[2]) //1
+#define default_console_loglevel (console_printk[3]) //7
 
 static inline void console_silent(void)
 {

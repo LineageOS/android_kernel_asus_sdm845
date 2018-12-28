@@ -1,0 +1,81 @@
+
+//for fingerprint;asus_bsp++;
+
+&soc{
+
+   qcom,qbt1000 {
+       status = "disabled";
+   };
+
+   goodix_gf5228@0{
+		compatible = "goodix,fingerprint";
+		reg = <0x0>;
+        spi-max-frequency = <50000000>;
+        input-device-name = "gf5228";
+        interrupt-parent = <&tlmm>;
+		interrupts = <121 0>;
+		spi-qup-id = <15>;
+
+        goodix,gpio_reset = <&tlmm 21 0x00>;
+		goodix,gpio_irq = <&tlmm 121 0x00>;
+
+		pinctrl-names = "goodix_ldo_disable","goodix_ldo_enable";
+		pinctrl-0 = <&fp_ldo_disable>;
+		pinctrl-1 = <&fp_ldo_enable &goodix_irq_active>;
+	};
+};
+
+&pmi8998_gpios {
+
+       fp_ldo{
+		  fp_ldo_enable: fp_ldo_enable {
+				   pins = "gpio5";
+				   function = "normal";
+				   power-source = <0>;
+			       output-high;
+				   bias-disable;
+		 };
+
+		 fp_ldo_disable: fp_ldo_disable {
+				   pins = "gpio5";
+				   function = "normal";
+				   power-source = <0>;
+			       output-low;
+				   bias-disable;
+		 };
+	  };
+};
+
+
+&tlmm {
+		/*add pin configuration for fingerprint*/
+		goodix_reset: goodix_reset {
+            mux {
+				pins = "gpio21";
+				function = "gpio";
+			};
+       
+            config {
+				pins = "gpio21";
+				drive-strength = <2>;
+				bias-disable;
+				output-low;
+			};
+      };
+
+      goodix_irq_active: goodix_irq_active {
+      
+            mux {
+				pins = "gpio121";
+				function = "gpio";
+			};
+			
+			config {
+				pins = "gpio121";
+				drive-strength = <2>;
+				bias-disable;
+				input-enable;
+			};
+      };
+	 /*add pin configuration for fingerprint*/
+};

@@ -3204,6 +3204,32 @@ release_mapping:
 	return ret;
 }
 
+//richard add for factory check cc status +++
+static ssize_t side_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct dwc3_msm *mdwc = dev_get_drvdata(dev);
+
+	if(mdwc->vbus_active || mdwc->id_state == DWC3_ID_GROUND)
+	{
+		switch(mdwc->typec_orientation)
+		{
+			case ORIENTATION_NONE:
+				return snprintf(buf, PAGE_SIZE, "ORIENTATION_NONE\n");
+			case ORIENTATION_CC1:
+				return snprintf(buf, PAGE_SIZE, "ORIENTATION_CC1\n");
+			case ORIENTATION_CC2:
+				return snprintf(buf, PAGE_SIZE, "ORIENTATION_CC2\n");
+			default:
+				return snprintf(buf, PAGE_SIZE, "ORIENTATION_NONE\n");
+		}
+	}
+
+	return snprintf(buf, PAGE_SIZE, "ORIENTATION_NONE\n");
+}
+static DEVICE_ATTR_RO(side);
+//richard add for factory check cc status ---
+
 static ssize_t mode_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -3701,6 +3727,7 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	device_create_file(&pdev->dev, &dev_attr_speed);
 	device_create_file(&pdev->dev, &dev_attr_usb_compliance_mode);
 	device_create_file(&pdev->dev, &dev_attr_xhci_link_compliance);
+	device_create_file(&pdev->dev, &dev_attr_side);
 
 	host_mode = usb_get_dr_mode(&mdwc->dwc3->dev) == USB_DR_MODE_HOST;
 	if (!dwc->is_drd && host_mode) {
@@ -4125,7 +4152,7 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 		atomic_read(&mdwc->dev->power.usage_count));
 
 	if (on) {
-		dev_dbg(mdwc->dev, "%s: turn on gadget %s\n",
+		dev_info(mdwc->dev, "[USB]%s: turn on gadget %s\n",
 					__func__, dwc->gadget.name);
 
 		dwc3_override_vbus_status(mdwc, true);
@@ -4152,7 +4179,7 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 		schedule_delayed_work(&mdwc->perf_vote_work,
 				msecs_to_jiffies(1000 * PM_QOS_SAMPLE_SEC));
 	} else {
-		dev_dbg(mdwc->dev, "%s: turn off gadget %s\n",
+		dev_info(mdwc->dev, "[USB]%s: turn off gadget %s\n",
 					__func__, dwc->gadget.name);
 		cancel_delayed_work_sync(&mdwc->perf_vote_work);
 		msm_dwc3_perf_vote_update(mdwc, false);

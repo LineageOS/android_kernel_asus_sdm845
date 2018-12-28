@@ -610,6 +610,12 @@
 			no-map;
 			reg = <0 0x97b00000 0 0x100000>;
 		};
+		
+		asus_debug_mem: asus_debug_region@0x97d00000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x97d00000 0 0x00200000>;
+		};
 
 		adsp_mem: adsp_region {
 			compatible = "shared-dma-pool";
@@ -663,6 +669,13 @@
 			size = <0 0x2000000>;
 			linux,cma-default;
 		};
+
+		/*asus_debug_mem: asus_debug_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0xA0000000 0x0 0x00200000>;
+		};
+		*/
 	};
 };
 
@@ -1048,6 +1061,18 @@
 		status = "ok";
 		qcom,bw-tbl =
 			< 1 >;
+	};
+
+	bus_proxy_client: qcom,bus_proxy_client {
+		compatible = "qcom,bus-proxy-client";
+		qcom,msm-bus,name = "bus-proxy-client";
+		qcom,msm-bus,num-cases = <2>;
+		qcom,msm-bus,num-paths = <2>;
+		qcom,msm-bus,vectors-KBps =
+			<22 512 0 0>, <23 512 0 0>,
+			<22 512 0 5000000>, <23 512 0 5000000>;
+		qcom,msm-bus,active-only;
+		status = "ok";
 	};
 
 	devfreq_memlat_0: qcom,cpu0-memlat-mon {
@@ -1750,8 +1775,8 @@
 		reg = <0x17980000 0x1000>;
 		reg-names = "wdt-base";
 		interrupts = <0 0 0>, <0 1 0>;
-		qcom,bark-time = <11000>;
-		qcom,pet-time = <9360>;
+		qcom,bark-time = <20000>;
+		qcom,pet-time = <15000>;
 		qcom,ipi-ping;
 		qcom,wakeup-enable;
 	};
@@ -3881,6 +3906,7 @@
 
 	tspp: msm_tspp@0x8880000 {
 		compatible = "qcom,msm_tspp";
+		status = "disabled";
 		reg = <0x088a7000 0x200>, /* MSM_TSIF0_PHYS */
 		      <0x088a8000 0x200>, /* MSM_TSIF1_PHYS */
 		      <0x088a9000 0x1000>, /* MSM_TSPP_PHYS  */

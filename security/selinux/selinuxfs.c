@@ -117,6 +117,8 @@ enum sel_inos {
 	SEL_STATUS,	/* export current status using mmap() */
 	SEL_POLICY,	/* allow userspace to read the in kernel policy */
 	SEL_VALIDATE_TRANS, /* compute validatetrans decision */
+	SEL_APS,
+	SEL_ENFORCE_ASUS,
 	SEL_INO_NEXT,	/* The next inode number to use */
 };
 
@@ -192,6 +194,151 @@ static const struct file_operations sel_enforce_ops = {
 	.write		= sel_write_enforce,
 	.llseek		= generic_file_llseek,
 };
+
+int RDUNLOCK=0; 
+static int set_rdunlock(char * str)
+{
+	if(strcmp("Y", str) == 0)
+	{
+		RDUNLOCK = 1;
+	}
+	else
+	{
+		RDUNLOCK = 0;
+	}
+	return 0;
+}
+__setup("RDUNLOCK=",set_rdunlock);
+
+
+#ifdef CONFIG_SECURITY_SELINUX_DEVELOP
+static ssize_t sel_asus_read_enforce(struct file *filp, char __user *buf,
+				size_t count, loff_t *ppos)
+{
+	char tmpbuf[TMPBUFLEN];
+	ssize_t length;
+
+	length = scnprintf(tmpbuf, TMPBUFLEN, "%d", selinux_enforcing);
+	return simple_read_from_buffer(buf, count, ppos, tmpbuf, length);
+}
+
+static ssize_t sel_asus_write_enforce(struct file *file, const char __user *buf,
+				 size_t count, loff_t *ppos)
+
+{
+	char *page = NULL;
+	ssize_t length;
+	int new_value;
+
+	length = -ENOMEM;
+	if (count >= PAGE_SIZE)
+		goto out;
+
+	/* No partial writes. */
+	length = -EINVAL;
+	if (*ppos != 0)
+		goto out;
+
+	length = -ENOMEM;
+	page = (char *)get_zeroed_page(GFP_KERNEL);
+	if (!page)
+		goto out;
+
+	length = -EFAULT;
+	if (copy_from_user(page, buf, count))
+		goto out;
+
+	length = -EINVAL;
+	if (sscanf(page, "%d", &new_value) != 1)
+		goto out;
+
+	if (new_value != selinux_enforcing) {
+		//length = task_has_security(current, SECURITY__SETENFORCE);
+		//if (length)
+			//goto out;
+
+		audit_log(current->audit_context, GFP_KERNEL, AUDIT_MAC_STATUS,
+			"enforcing=%d old_enforcing=%d auid=%u ses=%u",
+			new_value, selinux_enforcing,
+			from_kuid(&init_user_ns, audit_get_loginuid(current)),
+			audit_get_sessionid(current));
+		selinux_enforcing = new_value;
+		if (selinux_enforcing)
+			avc_ss_reset(0);
+
+		selnl_notify_setenforce(selinux_enforcing);
+		selinux_status_update_setenforce(selinux_enforcing);
+	}
+	length = count;
+out:
+	free_page((unsigned long) page);
+	return length;
+}
+#else
+#define sel_asus_write_enforce NULL
+#endif
+
+static const struct file_operations sel_enforce_asus_ops = {
+	.read		= sel_asus_read_enforce,
+	.write		= sel_asus_write_enforce,
+	.llseek		= generic_file_llseek,
+};
+
+static ssize_t sel_write_aps(struct file *file, const char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	char *page = NULL;
+	ssize_t length;
+	int new_value;
+
+	length = -ENOMEM;
+	if (count >= PAGE_SIZE)
+		goto out;
+
+	/* No partial writes. */
+	length = EINVAL;
+	if (*ppos != 0)
+		goto out;
+
+	length = -ENOMEM;
+	page = (char *)get_zeroed_page(GFP_KERNEL);
+	if (!page)
+		goto out;
+
+	length = -EFAULT;
+	if (copy_from_user(page, buf, count))
+		goto out;
+
+	length = -EINVAL;
+	if (sscanf(page, "%d", &new_value) != 1)
+		goto out;
+
+	if (new_value != security_get_aps()) {
+		security_set_aps(new_value);
+	}
+	length = count;
+out:
+	free_page((unsigned long) page);
+	return length;
+}
+
+
+static ssize_t sel_read_aps(struct file *filp, char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	char tmpbuf[TMPBUFLEN];
+	ssize_t length;
+
+	length = scnprintf(tmpbuf, TMPBUFLEN, "%d", security_get_aps());
+	return simple_read_from_buffer(buf, count, ppos, tmpbuf, length);
+}
+
+static const struct file_operations sel_aps_ops = {
+	.read		= sel_read_aps,
+	.write		= sel_write_aps,
+	.llseek		= generic_file_llseek,
+};
+
 
 static ssize_t sel_read_handle_unknown(struct file *filp, char __user *buf,
 					size_t count, loff_t *ppos)
@@ -1787,31 +1934,65 @@ static int sel_fill_super(struct super_block *sb, void *data, int silent)
 	struct inode *inode;
 	struct inode_security_struct *isec;
 
-	static struct tree_descr selinux_files[] = {
-		[SEL_LOAD] = {"load", &sel_load_ops, S_IRUSR|S_IWUSR},
-		[SEL_ENFORCE] = {"enforce", &sel_enforce_ops, S_IRUGO|S_IWUSR},
-		[SEL_CONTEXT] = {"context", &transaction_ops, S_IRUGO|S_IWUGO},
-		[SEL_ACCESS] = {"access", &transaction_ops, S_IRUGO|S_IWUGO},
-		[SEL_CREATE] = {"create", &transaction_ops, S_IRUGO|S_IWUGO},
-		[SEL_RELABEL] = {"relabel", &transaction_ops, S_IRUGO|S_IWUGO},
-		[SEL_USER] = {"user", &transaction_ops, S_IRUGO|S_IWUGO},
-		[SEL_POLICYVERS] = {"policyvers", &sel_policyvers_ops, S_IRUGO},
-		[SEL_COMMIT_BOOLS] = {"commit_pending_bools", &sel_commit_bools_ops, S_IWUSR},
-		[SEL_MLS] = {"mls", &sel_mls_ops, S_IRUGO},
-		[SEL_DISABLE] = {"disable", &sel_disable_ops, S_IWUSR},
-		[SEL_MEMBER] = {"member", &transaction_ops, S_IRUGO|S_IWUGO},
-		[SEL_CHECKREQPROT] = {"checkreqprot", &sel_checkreqprot_ops, S_IRUGO|S_IWUSR},
-		[SEL_REJECT_UNKNOWN] = {"reject_unknown", &sel_handle_unknown_ops, S_IRUGO},
-		[SEL_DENY_UNKNOWN] = {"deny_unknown", &sel_handle_unknown_ops, S_IRUGO},
-		[SEL_STATUS] = {"status", &sel_handle_status_ops, S_IRUGO},
-		[SEL_POLICY] = {"policy", &sel_policy_ops, S_IRUGO},
-		[SEL_VALIDATE_TRANS] = {"validatetrans", &sel_transition_ops,
+	if(RDUNLOCK == 0)
+	{
+		static struct tree_descr selinux_files[] = {
+			[SEL_LOAD] = {"load", &sel_load_ops, S_IRUSR|S_IWUSR},
+			[SEL_ENFORCE] = {"enforce", &sel_enforce_ops, S_IRUGO|S_IWUSR},
+			[SEL_CONTEXT] = {"context", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_ACCESS] = {"access", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_CREATE] = {"create", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_RELABEL] = {"relabel", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_USER] = {"user", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_POLICYVERS] = {"policyvers", &sel_policyvers_ops, S_IRUGO},
+			[SEL_COMMIT_BOOLS] = {"commit_pending_bools", &sel_commit_bools_ops, S_IWUSR},
+			[SEL_MLS] = {"mls", &sel_mls_ops, S_IRUGO},
+			[SEL_DISABLE] = {"disable", &sel_disable_ops, S_IWUSR},
+			[SEL_MEMBER] = {"member", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_CHECKREQPROT] = {"checkreqprot", &sel_checkreqprot_ops, S_IRUGO|S_IWUSR},
+			[SEL_REJECT_UNKNOWN] = {"reject_unknown", &sel_handle_unknown_ops, S_IRUGO},
+			[SEL_DENY_UNKNOWN] = {"deny_unknown", &sel_handle_unknown_ops, S_IRUGO},
+			[SEL_STATUS] = {"status", &sel_handle_status_ops, S_IRUGO},
+			[SEL_POLICY] = {"policy", &sel_policy_ops, S_IRUGO},
+			[SEL_VALIDATE_TRANS] = {"validatetrans", &sel_transition_ops,
 					S_IWUGO},
-		/* last one */ {""}
-	};
-	ret = simple_fill_super(sb, SELINUX_MAGIC, selinux_files);
-	if (ret)
-		goto err;
+			[SEL_APS] = {"aps", &sel_aps_ops, S_IRUGO|S_IWUSR},
+			/* last one */ {""}
+		};
+		ret = simple_fill_super(sb, SELINUX_MAGIC, selinux_files);
+		if (ret)
+			goto err;
+	}
+	else
+	{
+		static struct tree_descr selinux_files[] = {
+			[SEL_LOAD] = {"load", &sel_load_ops, S_IRUSR|S_IWUSR},
+			[SEL_ENFORCE] = {"enforce", &sel_enforce_ops, S_IRUGO|S_IWUSR},
+			[SEL_CONTEXT] = {"context", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_ACCESS] = {"access", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_CREATE] = {"create", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_RELABEL] = {"relabel", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_USER] = {"user", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_POLICYVERS] = {"policyvers", &sel_policyvers_ops, S_IRUGO},
+			[SEL_COMMIT_BOOLS] = {"commit_pending_bools", &sel_commit_bools_ops, S_IWUSR},
+			[SEL_MLS] = {"mls", &sel_mls_ops, S_IRUGO},
+			[SEL_DISABLE] = {"disable", &sel_disable_ops, S_IWUSR},
+			[SEL_MEMBER] = {"member", &transaction_ops, S_IRUGO|S_IWUGO},
+			[SEL_CHECKREQPROT] = {"checkreqprot", &sel_checkreqprot_ops, S_IRUGO|S_IWUSR},
+			[SEL_REJECT_UNKNOWN] = {"reject_unknown", &sel_handle_unknown_ops, S_IRUGO},
+			[SEL_DENY_UNKNOWN] = {"deny_unknown", &sel_handle_unknown_ops, S_IRUGO},
+			[SEL_STATUS] = {"status", &sel_handle_status_ops, S_IRUGO},
+			[SEL_POLICY] = {"policy", &sel_policy_ops, S_IRUGO},
+			[SEL_VALIDATE_TRANS] = {"validatetrans", &sel_transition_ops,
+					S_IWUGO},
+			[SEL_APS] = {"aps", &sel_aps_ops, S_IRUGO|S_IWUSR},
+			[SEL_ENFORCE_ASUS] = {"enforce_asus", &sel_enforce_asus_ops, S_IRWXUGO},
+			/* last one */ {""}
+		};
+		ret = simple_fill_super(sb, SELINUX_MAGIC, selinux_files);
+		if (ret)
+			goto err;
+	}
 
 	bool_dir = sel_make_dir(sb->s_root, BOOL_DIR_NAME, &sel_last_ino);
 	if (IS_ERR(bool_dir)) {

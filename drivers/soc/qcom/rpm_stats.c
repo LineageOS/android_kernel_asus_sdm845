@@ -22,12 +22,17 @@
 #include <linux/of.h>
 #include <linux/uaccess.h>
 #include <asm/arch_timer.h>
+#include <linux/time.h>
+#include <linux/proc_fs.h>
 
 #define RPM_STATS_NUM_REC	2
 #define MSM_ARCH_TIMER_FREQ	19200000
 
 #define GET_PDATA_OF_ATTR(attr) \
 	(container_of(attr, struct msm_rpmstats_kobj_attr, ka)->pd)
+
+extern u32 asus_debug_suspend;
+extern bool asus_enter_suspend;
 
 struct msm_rpmstats_record {
 	char name[32];
@@ -203,11 +208,168 @@ static ssize_t rpmstats_show(struct kobject *kobj,
 	return length;
 }
 
+static int asus_softap;
+struct msm_rpmstats_platform_data asus_pdata;
+u32 asus_rpm_count[2] = {0xffffffff, 0xffffffff};
+#define MAX_TIME    10*60
+#define softap_PROC_FILE "driver/asus_softap"
+
+void asus_show_rpm_sleep_count (void) {
+	struct msm_rpmstats_private_data prvdata;
+	void __iomem *reg;
+	struct msm_rpm_stats_data data[asus_pdata.num_records];
+	int i;
+	static u32 local_cxsd = 0;
+	static bool first_count = false;
+	static struct timeval last_time;
+	static struct timeval now_time;
+
+	if(!asus_pdata.phys_addr_base){
+		pr_err("phys_addr_base is NULL!\n");
+		return ;
+	}
+
+	prvdata.reg_base = ioremap_nocache(asus_pdata.phys_addr_base,
+					asus_pdata.phys_size);
+	if (!prvdata.reg_base) {
+		printk("ERROR could not ioremap start=%pa, len=%u\n",
+				&asus_pdata.phys_addr_base, asus_pdata.phys_size);
+		return ;
+	}
+
+	reg = prvdata.reg_base;
+	for (i = 0; i < asus_pdata.num_records; i++) {
+		data[i].count = msm_rpmstats_read_long_register(reg, i,
+				offsetof(struct msm_rpm_stats_data, count));
+		asus_rpm_count[i] = data[i].count;
+	}
+
+	if(!asus_enter_suspend || asus_softap){ //skip enable softap
+		if(asus_softap)
+			first_count = false;
+		goto DONE;
+	}
+
+	if((data[1].count >= 0) && (data[1].count == local_cxsd)){
+		if(!first_count){
+			do_gettimeofday(&now_time);
+			first_count = true;
+		}
+
+		do_gettimeofday(&last_time);
+
+		if((last_time.tv_sec-now_time.tv_sec) >= MAX_TIME){
+			asus_debug_suspend = 1;
+			first_count = false;
+		}else{
+			asus_debug_suspend = 0;
+		}
+	}else{
+		local_cxsd = data[1].count;
+		asus_debug_suspend = 0;
+		first_count = false;
+	}
+
+DONE:
+	printk("RPM Mode:aosd count=%d;cxsd count=%d;asus_enter_suspend=%d;asus_debug_suspend=%d\n", data[0].count, data[1].count, asus_enter_suspend, asus_debug_suspend);
+	if(asus_enter_suspend)
+		asus_enter_suspend = false;
+	return ;
+}
+
+static ssize_t asus_softap_proc_write(struct file *filp, const char __user *buff,
+        size_t len, loff_t *data)
+{
+    char messages[256];
+
+    if (len > 256) {
+        len = 256;
+    }
+
+    memset(messages, 0, sizeof(messages));
+    if (copy_from_user(messages, buff, len)) {
+        return -EFAULT;
+    }
+
+    sscanf(messages,"%d",&asus_softap);
+	pr_info("asus_softap=%d\n", asus_softap);
+
+    return len;
+}
+static int asus_softap_proc_read(struct seq_file *buf, void *data)
+{
+    seq_printf(buf, "asus_softap=%d\n", asus_softap);
+    return 0;
+}
+static int asus_softap_proc_open(struct inode *inode, struct  file *file)
+{
+    return single_open(file, asus_softap_proc_read, NULL);
+}
+
+static const struct file_operations asus_softap_fops = {
+    .owner = THIS_MODULE,
+    .open = asus_softap_proc_open,
+    .read = seq_read,
+    .write = asus_softap_proc_write,
+};
+
+static void create_asus_softap_proc_file(void)
+{
+    struct proc_dir_entry *asus_softap = proc_create(softap_PROC_FILE, 0444, NULL, &asus_softap_fops);
+
+    if(!asus_softap)
+        pr_err("creat asus_softap proc inode failed!\n");
+}
+
+static ssize_t rpmlog_show(struct kobject *kobj,
+			struct kobj_attribute *attr, char *buf)
+{
+	void __iomem* aop_log;
+
+	u32 logmsg[240];
+	char msg[35]={0};
+	int i=0,j=0;
+
+/*
+struct aop_log_entry {
+  uint32        timestamp_lo;
+  uint32        message[2];
+  uint32        data;
+} *aop_log_data = NULL;
+uint32 *log_counts;
+*/
+	aop_log = ioremap_nocache(0xC370000,0X400);
+	if(!aop_log){
+		pr_err("%s: ERROR richard could not ioremap ",__func__);
+	}
+	else
+	{
+		memcpy_fromio(logmsg,aop_log,sizeof(logmsg));
+		for (i = 0; i < 60; i++) {
+			snprintf(msg,sizeof(msg),"T:%08X M:%c%c%c%c%c%c%c%c D:%08X\n",logmsg[i*4+0],
+				*((char *)(&logmsg[i*4+1]) + 0),
+				*((char *)(&logmsg[i*4+1]) + 1),
+				*((char *)(&logmsg[i*4+1]) + 2),
+				*((char *)(&logmsg[i*4+1]) + 3),
+				*((char *)(&logmsg[i*4+1]) + 4),
+				*((char *)(&logmsg[i*4+1]) + 5),
+				*((char *)(&logmsg[i*4+1]) + 6),
+				*((char *)(&logmsg[i*4+1]) + 7),
+				logmsg[i*4+3]);
+			printk("%s",msg);
+			j+= snprintf(buf+j, sizeof(msg), "%s", msg);
+		}
+	}
+
+	return j;
+}
+
 static int msm_rpmstats_create_sysfs(struct platform_device *pdev,
 				struct msm_rpmstats_platform_data *pd)
 {
 	struct kobject *rpmstats_kobj = NULL;
 	struct msm_rpmstats_kobj_attr *rpms_ka = NULL;
+	struct msm_rpmstats_kobj_attr *rpms_log = NULL;
 	int ret = 0;
 
 	rpmstats_kobj = kobject_create_and_add("system_sleep", power_kobj);
@@ -235,6 +397,18 @@ static int msm_rpmstats_create_sysfs(struct platform_device *pdev,
 
 	ret = sysfs_create_file(rpmstats_kobj, &rpms_ka->ka.attr);
 	platform_set_drvdata(pdev, rpms_ka);
+
+	rpms_log = kzalloc(sizeof(*rpms_log), GFP_KERNEL);
+	if (rpms_log) {
+		sysfs_attr_init(&rpms_log->ka.attr);
+		rpms_log->pd = pd;
+		rpms_log->ka.attr.mode = 0444;
+		rpms_log->ka.attr.name = "aop_log";
+		rpms_log->ka.show = rpmlog_show;
+		rpms_log->ka.store = NULL;
+
+		ret = sysfs_create_file(rpmstats_kobj, &rpms_log->ka.attr);
+	}
 
 fail:
 	return ret;
@@ -277,7 +451,12 @@ static int msm_rpmstats_probe(struct platform_device *pdev)
 	if (of_property_read_u32(pdev->dev.of_node, key, &pdata->num_records))
 		pdata->num_records = RPM_STATS_NUM_REC;
 
+	memset(&asus_pdata, 0, sizeof(asus_pdata));
+	memcpy(&asus_pdata, pdata, sizeof(asus_pdata));
+
 	msm_rpmstats_create_sysfs(pdev, pdata);
+
+	create_asus_softap_proc_file();
 
 	return 0;
 }
@@ -305,6 +484,17 @@ static const struct of_device_id rpm_stats_table[] = {
 	{ },
 };
 
+int asus_rpm_stats_resume(struct device *dev)
+{
+	asus_show_rpm_sleep_count();
+
+	return 0;
+}
+
+static const struct dev_pm_ops asus_rpm_stats_ops = {
+	.resume = asus_rpm_stats_resume,
+};
+
 static struct platform_driver msm_rpmstats_driver = {
 	.probe = msm_rpmstats_probe,
 	.remove = msm_rpmstats_remove,
@@ -312,6 +502,7 @@ static struct platform_driver msm_rpmstats_driver = {
 		.name = "msm_rpm_stat",
 		.owner = THIS_MODULE,
 		.of_match_table = rpm_stats_table,
+		.pm = &asus_rpm_stats_ops,
 	},
 };
 builtin_platform_driver(msm_rpmstats_driver);

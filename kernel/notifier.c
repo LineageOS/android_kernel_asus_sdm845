@@ -77,6 +77,7 @@ static int notifier_call_chain(struct notifier_block **nl,
 {
 	int ret = NOTIFY_DONE;
 	struct notifier_block *nb, *next_nb;
+	unsigned long timebegin,timeuse;
 
 	nb = rcu_dereference_raw(*nl);
 
@@ -90,7 +91,13 @@ static int notifier_call_chain(struct notifier_block **nl,
 			continue;
 		}
 #endif
+		timebegin = jiffies;
 		ret = nb->notifier_call(nb, val, v);
+		timeuse = jiffies - timebegin;
+		if(timeuse*10 > HZ)
+		{
+			printk("[ASUS][PM] something is slow ,timeuse=%lu ms %pF\n",timeuse*1000/HZ,nb->notifier_call);
+		}
 
 		if (nr_calls)
 			(*nr_calls)++;

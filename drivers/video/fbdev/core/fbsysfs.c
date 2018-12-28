@@ -356,6 +356,24 @@ static ssize_t show_cursor(struct device *device,
 	return 0;
 }
 
+static ssize_t store_hdr_mode(struct device *device,
+			     struct device_attribute *attr,
+			     const char *buf, size_t count)
+{
+	struct fb_info *fb_info = dev_get_drvdata(device);
+	char **last = NULL;
+	fb_info->hdr_mode = simple_strtoul(buf, last, 0);
+
+	return count;
+}
+
+static ssize_t show_hdr_mode(struct device *device,
+			    struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fb_info = dev_get_drvdata(device);
+	return snprintf(buf, PAGE_SIZE, "%d\n", fb_info->hdr_mode);
+}
+
 static ssize_t store_pan(struct device *device,
 			 struct device_attribute *attr,
 			 const char *buf, size_t count)
@@ -501,6 +519,7 @@ static struct device_attribute device_attrs[] = {
 	__ATTR(blank, S_IRUGO|S_IWUSR, show_blank, store_blank),
 	__ATTR(console, S_IRUGO|S_IWUSR, show_console, store_console),
 	__ATTR(cursor, S_IRUGO|S_IWUSR, show_cursor, store_cursor),
+	__ATTR(hdr_mode, S_IRUGO|S_IWUSR|S_IWGRP, show_hdr_mode, store_hdr_mode),
 	__ATTR(mode, S_IRUGO|S_IWUSR, show_mode, store_mode),
 	__ATTR(modes, S_IRUGO|S_IWUSR, show_modes, store_modes),
 	__ATTR(pan, S_IRUGO|S_IWUSR, show_pan, store_pan),

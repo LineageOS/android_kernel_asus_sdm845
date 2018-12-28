@@ -166,6 +166,7 @@ enum ifs_tx_rx {
 enum ifs_proto {
 	IFS_TCP,
 	IFS_UDP,
+	IFS_DNS,//ASUS_BSP Johnny +++[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
 	IFS_PROTO_OTHER,
 	IFS_MAX_PROTOS
 };

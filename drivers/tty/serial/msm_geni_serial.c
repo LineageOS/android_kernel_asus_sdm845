@@ -30,6 +30,9 @@
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
 
+extern int g_user_dbg_mode;  //ASUSDEBUG  avoid log to uart console in user version
+extern int get_download_mode(void);
+
 /* UART specific GENI registers */
 #define SE_UART_LOOPBACK_CFG		(0x22C)
 #define SE_UART_TX_TRANS_CFG		(0x25C)
@@ -757,6 +760,11 @@ static void msm_geni_serial_console_write(struct console *co, const char *s,
 	struct msm_geni_serial_port *port;
 	int locked = 1;
 	unsigned long flags;
+
+//ASUSDEBUG+  avoid log to uart console in user version
+	if(!g_user_dbg_mode)
+		return;
+//ASUSDEBUG -
 
 	WARN_ON(co->index < 0 || co->index >= GENI_UART_NR_PORTS);
 
@@ -2072,6 +2080,11 @@ msm_geni_serial_early_console_write(struct console *con, const char *s,
 			unsigned int n)
 {
 	struct earlycon_device *dev = con->data;
+	
+	//ASUSDEBUG+  avoid log to uart console in user version
+	if(!g_user_dbg_mode)
+		return;
+	//ASUSDEBUG -
 
 	__msm_geni_serial_console_write(&dev->port, s, n);
 }
@@ -2632,6 +2645,8 @@ static int msm_geni_serial_sys_suspend_noirq(struct device *dev)
 			IPC_LOG_MSG(port->ipc_log_pwr,
 				"%s:Active userspace vote; ioctl_cnt %d\n",
 					__func__, port->ioctl_count);
+			if(get_download_mode() == 1)
+				panic("msm_geni_serial_sys_suspend_noirq: EBUSY\n"); 
 			mutex_unlock(&tty_port->mutex);
 			return -EBUSY;
 		}

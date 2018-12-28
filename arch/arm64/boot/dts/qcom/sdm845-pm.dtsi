@@ -75,7 +75,7 @@
 					qcom,latency-us = <461>;
 					qcom,ss-power = <100>;
 					qcom,energy-overhead = <400000>;
-					qcom,time-overhead = <500>;
+					qcom,time-overhead = <1200>;
 					qcom,is-reset;
 					qcom,use-broadcast-timer;
 				};
@@ -87,7 +87,7 @@
 					qcom,latency-us = <531>;
 					qcom,ss-power = <73>;
 					qcom,energy-overhead = <500000>;
-					qcom,time-overhead = <600>;
+					qcom,time-overhead = <1200>;
 					qcom,is-reset;
 					qcom,use-broadcast-timer;
 				};
@@ -120,7 +120,7 @@
 					qcom,latency-us = <621>;
 					qcom,ss-power = <436>;
 					qcom,energy-overhead = <418225>;
-					qcom,time-overhead = <885>;
+					qcom,time-overhead = <1200>;
 					qcom,is-reset;
 					qcom,use-broadcast-timer;
 				};
@@ -132,7 +132,7 @@
 					qcom,latency-us = <1061>;
 					qcom,ss-power = <400>;
 					qcom,energy-overhead = <428225>;
-					qcom,time-overhead = <1000>;
+					qcom,time-overhead = <1200>;
 					qcom,is-reset;
 					qcom,use-broadcast-timer;
 				};

@@ -20,6 +20,21 @@
 
 DEFINE_MUTEX(pm_mutex);
 
+//ASUS_BSP +++ jeff_gu add timer to dump wakeup_sources
+#include<linux/timer.h>
+
+#define PM_DUMP_WAKEUP_TIMEOUT_MIN 		1000*8  //8 sec
+#define PM_DUMP_WAKEUP_TIMEOUT_MAX   1000*60*30		//30min
+int g_unattended_timer_timeout = PM_DUMP_WAKEUP_TIMEOUT_MIN;
+int can_do_dump_framework = 0;
+void dump_wakeup_sources_timer_expired(unsigned long data);
+extern void asus_dump_active_wakeup_sources(void);
+
+DEFINE_TIMER(dump_wakeup_sources_timer, dump_wakeup_sources_timer_expired, 0, 0);
+
+bool framework_display_on = true;
+//ASUS_BSP --- jeff_gu add timer to dump wakeup_sources
+
 #ifdef CONFIG_PM_SLEEP
 
 /* Routines for PM-transition notifications */
@@ -368,8 +383,23 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 	}
 
 	state = decode_state(buf, n);
-	if (state < PM_SUSPEND_MAX)
+	if (state < PM_SUSPEND_MAX)	{
+		//ASUS_BSP +++ jeff_gu add timer to dump wakeup_sources
+		if (state==PM_SUSPEND_MEM && !framework_display_on) {
+			pr_info("[PM] Enter pm_suspend(mem),turn off dump_wakeup_sources_timer\n");
+			del_timer (&dump_wakeup_sources_timer);
+		}
+		//ASUS_BSP --- jeff_gu add timer to dump wakeup_sources
+
 		error = pm_suspend(state);
+
+		//ASUS_BSP +++ jeff_gu add timer to dump wakeup_sources
+		if (state==PM_SUSPEND_MEM && !framework_display_on) {
+			pr_info("[PM] Exit pm_suspend(mem),turn on dump_wakeup_sources_timer\n");
+			mod_timer(&dump_wakeup_sources_timer, jiffies + msecs_to_jiffies(g_unattended_timer_timeout));
+		}
+		//ASUS_BSP --- jeff_gu add timer to dump wakeup_sources
+	}
 	else if (state == PM_SUSPEND_MAX)
 		error = hibernate();
 	else
@@ -451,6 +481,64 @@ static ssize_t wakeup_count_store(struct kobject *kobj,
 }
 
 power_attr(wakeup_count);
+
+//ASUS_BSP +++ jeff_gu add timer to dump wakeup_sources
+void dump_wakeup_sources_timer_expired(unsigned long data)
+{
+	pr_info("[PM]unattended_timer_expired\n");
+    ASUSEvtlog("[PM]unattended_timer_expired\n");
+    can_do_dump_framework = 1;
+    g_unattended_timer_timeout = g_unattended_timer_timeout *2;
+    if(g_unattended_timer_timeout > PM_DUMP_WAKEUP_TIMEOUT_MAX)
+    {
+		g_unattended_timer_timeout = PM_DUMP_WAKEUP_TIMEOUT_MAX;
+	}
+	asus_dump_active_wakeup_sources();
+	mod_timer(&dump_wakeup_sources_timer, jiffies + msecs_to_jiffies(g_unattended_timer_timeout));
+}
+
+static ssize_t dump_wakeup_sources_timer_show(struct kobject *kobj, struct kobj_attribute *attr,
+			  char *buf)
+{
+	unsigned int val = 0;
+	pr_info("[PM]dump_wakeup_sources_timer_show : show wakeup_sources raw count \n");
+	asus_dump_active_wakeup_sources();
+
+	return sprintf(buf, "%u\n", val);
+}
+
+static ssize_t dump_wakeup_sources_timer_store(struct kobject *kobj, struct kobj_attribute *attr,
+			   const char *buf, size_t n)
+{
+	char *p;
+	int len;
+
+	p = memchr(buf, '\n', n);
+	len = p ? p - buf : n;
+
+	if (len == 2 && !strncmp(buf, "on", len))
+	{
+		pr_info("[PM]dump_wakeup_sources_timer_store: timer on\n");
+		framework_display_on = false;
+		printk("[PM]request_suspend_state: (0->3)");
+		ASUSEvtlog("[PM]request_suspend_state: (0->3)");
+		g_unattended_timer_timeout = PM_DUMP_WAKEUP_TIMEOUT_MIN;
+		mod_timer(&dump_wakeup_sources_timer, jiffies + msecs_to_jiffies(g_unattended_timer_timeout));
+	}
+	else if (len == 3 && !strncmp(buf, "off", len))
+	{
+		pr_info("[PM]dump_wakeup_sources_timer_store: timer off\n");
+		framework_display_on = true;
+		printk("[PM]request_suspend_state: (3->0)");
+		ASUSEvtlog("[PM]request_suspend_state: (3->0)");
+		del_timer (&dump_wakeup_sources_timer);
+	}
+
+	return n;
+}
+
+power_attr(dump_wakeup_sources_timer);
+//ASUS_BSP --- jeff_gu add timer to dump wakeup_sources
 
 #ifdef CONFIG_PM_AUTOSLEEP
 static ssize_t autosleep_show(struct kobject *kobj,
@@ -595,6 +683,7 @@ power_attr(pm_freeze_timeout);
 
 static struct attribute * g[] = {
 	&state_attr.attr,
+	&dump_wakeup_sources_timer_attr.attr,	//ASUS_BSP  jeff_gu add timer to dump wakeup_sources
 #ifdef CONFIG_PM_TRACE
 	&pm_trace_attr.attr,
 	&pm_trace_dev_match_attr.attr,

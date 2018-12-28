@@ -1,0 +1,55 @@
+//ASUS_BSP_Sensors +++
+&qupv3_se12_i2c {
+	status = "ok";
+	cm36656@60 {
+		compatible = "capella,cm36656";
+		reg = <0x60>;
+		capella,slave_address = <0x60>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <120 0x2>;
+		capella,intrpin-gpios = <&tlmm 120 0x2>;
+		vio-supply = <&pm8998_lvs2>;
+		vdd-supply = <&pm8998_l19>;
+    };
+
+	tcs3400@39 {
+		compatible = "ams,tcs3400";
+		reg = <0x39>;
+		ams,slave_address = <0x39>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <118 0x2>;
+		ams,intrpin-gpios = <&tlmm 118 0x2>;
+		vio-supply = <&pm8998_lvs2>;
+		vdd-supply = <&pm8998_l19>;
+    };
+};
+
+&qupv3_se14_i2c {
+	status = "ok";
+	sx9310@28 {
+		compatible = "semtech,sx9310";
+		reg = <0x28>;
+		sx9310,slave_address = <0x28>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <24 0x2>;
+		sx9310,intrpin-gpios = <&tlmm 24 0x2>;
+		vio-supply = <&pm8998_lvs2>;
+    };
+};
+
+&soc {
+        hall_sensor {
+                compatible = "qcom,hall";
+                pinctrl-names = "hall_gpio_high","hall_gpio_low";
+                pinctrl-0 = <&gpio_hall_active>;
+                pinctrl-1 = <&gpio_hall_suspend>;
+                qcom,hall-gpio = <&tlmm 124 0x0>;
+        };
+};
+
+
+&pmi8998_haptics {
+	qcom,wave-play-rate-us = <4255>;
+	qcom,vmax-mv = <2520>;
+	status = "okay";
+};

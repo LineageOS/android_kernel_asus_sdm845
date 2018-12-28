@@ -24,6 +24,7 @@
  * the best guess is to add 0.5s.
  */
 
+int rtc_ready;
 static int __init rtc_hctosys(void)
 {
 	int err = -ENODEV;
@@ -63,6 +64,10 @@ static int __init rtc_hctosys(void)
 		tm.tm_hour, tm.tm_min, tm.tm_sec,
 		(long long) tv64.tv_sec);
 
+		if (rtc_ready == 0) {
+			rtc_ready = 1;
+			printk("%s: RTC set rtc_ready = 1\n", __func__);
+		}
 err_read:
 	rtc_class_close(rtc);
 

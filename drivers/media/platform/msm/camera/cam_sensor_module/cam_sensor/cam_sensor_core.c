@@ -17,6 +17,9 @@
 #include "cam_soc_util.h"
 #include "cam_trace.h"
 
+#include "asus_cam_sensor.h" //ASUS_BSP Zhengwei "porting sensor ATD"
+#include "asus_ois.h"   //ASUS_BSP Zhengwei "speed up camera 0 open"
+
 static void cam_sensor_update_req_mgr(
 	struct cam_sensor_ctrl_t *s_ctrl,
 	struct cam_packet *csl_packet)
@@ -246,6 +249,37 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	return rc;
 }
 
+//ASUS_BSP Zhengwei +++ "override i2c setting for ov8856"
+#ifdef PROJECT_DRACO
+static void override_i2c_write_setting(struct camera_io_master *io_master_info, struct cam_sensor_i2c_reg_setting * setting, const char * op_string)
+{
+	int i;
+
+	struct cam_sensor_ctrl_t* s_ctrl = container_of(io_master_info,struct cam_sensor_ctrl_t,io_master_info);
+
+	if(s_ctrl->sensordata->slave_info.sensor_id == 0x885a)
+	{
+		for(i=0;i<setting->size;i++)
+		{
+			if(setting->reg_setting[i].reg_addr == 0x3614)
+			{
+				if(is_OV8856_R1B(s_ctrl->id) == 1 && setting->reg_setting[i].reg_data != 0x20)
+				{
+					setting->reg_setting[i].reg_data = 0x20;
+					CAM_INFO(CAM_SENSOR,"OV8856 R1B, change reg 0x3614 to 0x20 in OP %s\n",op_string);
+				}
+				else if(is_OV8856_R1B(s_ctrl->id) == 0 && setting->reg_setting[i].reg_data != 0x60)
+				{
+					setting->reg_setting[i].reg_data = 0x60;
+					CAM_INFO(CAM_SENSOR,"OV8856 R1A, change reg 0x3614 to 0x60 in OP %s\n",op_string);
+				}
+			}
+		}
+	}
+}
+#endif
+//ASUS_BSP Zhengwei --- "override i2c setting for ov8856"
+
 static int32_t cam_sensor_i2c_modes_util(
 	struct camera_io_master *io_master_info,
 	struct i2c_settings_list *i2c_list)
@@ -254,6 +288,9 @@ static int32_t cam_sensor_i2c_modes_util(
 	uint32_t i, size;
 
 	if (i2c_list->op_code == CAM_SENSOR_I2C_WRITE_RANDOM) {
+		#ifdef PROJECT_DRACO
+		override_i2c_write_setting(io_master_info,&i2c_list->i2c_settings,"WRITE_RANDOM");//ASUS_BSP Zhengwei "override i2c setting for ov8856"
+		#endif
 		rc = camera_io_dev_write(io_master_info,
 			&(i2c_list->i2c_settings));
 		if (rc < 0) {
@@ -263,6 +300,9 @@ static int32_t cam_sensor_i2c_modes_util(
 			return rc;
 		}
 	} else if (i2c_list->op_code == CAM_SENSOR_I2C_WRITE_SEQ) {
+		#ifdef PROJECT_DRACO
+		override_i2c_write_setting(io_master_info,&i2c_list->i2c_settings,"WRITE_SEQ");//ASUS_BSP Zhengwei "override i2c setting for ov8856"
+		#endif
 		rc = camera_io_dev_write_continuous(
 			io_master_info,
 			&(i2c_list->i2c_settings),
@@ -274,6 +314,9 @@ static int32_t cam_sensor_i2c_modes_util(
 			return rc;
 		}
 	} else if (i2c_list->op_code == CAM_SENSOR_I2C_WRITE_BURST) {
+		#ifdef PROJECT_DRACO
+		override_i2c_write_setting(io_master_info,&i2c_list->i2c_settings,"WRITE_BURST");//ASUS_BSP Zhengwei "override i2c setting for ov8856"
+		#endif
 		rc = camera_io_dev_write_continuous(
 			io_master_info,
 			&(i2c_list->i2c_settings),
@@ -632,6 +675,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 
 		/* Match sensor ID */
 		rc = cam_sensor_match_id(s_ctrl);
+//ASUS_BSP Zhengwei +++ "Fix IMX363 ID"
+#ifdef PROJECT_DRACO
+		if(rc < 0 && s_ctrl->id == CAMERA_0)
+		{
+			rc = verify_imx363_id(s_ctrl);
+			CAM_INFO(CAM_SENSOR,"Verfiy IMX363 ID %s",rc==0?"PASS":"FAIL");
+		}
+#endif
+//ASUS_BSP Zhengwei --- "Fix IMX363 ID"
 		if (rc < 0) {
 			cam_sensor_power_down(s_ctrl);
 			msleep(20);
@@ -643,7 +695,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			s_ctrl->soc_info.index,
 			s_ctrl->sensordata->slave_info.sensor_slave_addr,
 			s_ctrl->sensordata->slave_info.sensor_id);
-
+		asus_cam_sensor_init(s_ctrl);//ASUS_BSP Zhengwei "porting sensor ATD"
 		rc = cam_sensor_power_down(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR, "fail in Sensor Power Down");
@@ -964,6 +1016,11 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
+	if(s_ctrl->id == CAMERA_0)
+	{
+		ois_power_up();//ASUS_BSP Zhengwei "speed up camera 0 open"
+	}
+
 	if (s_ctrl->bob_pwm_switch) {
 		rc = cam_sensor_bob_pwm_mode_switch(soc_info,
 			s_ctrl->bob_reg_index, true);
@@ -983,6 +1040,8 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 	rc = camera_io_init(&(s_ctrl->io_master_info));
 	if (rc < 0)
 		CAM_ERR(CAM_SENSOR, "cci_init failed: rc: %d", rc);
+
+	s_ctrl->power_state = 1;//ASUS_BSP Zhengwei "porting sensor ATD"
 
 	return rc;
 }
@@ -1022,6 +1081,12 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 	camera_io_release(&(s_ctrl->io_master_info));
+
+	if(s_ctrl->id == CAMERA_0)
+	{
+		ois_power_down();//ASUS_BSP Zhengwei "speed up camera 0 open"
+	}
+	s_ctrl->power_state = 0;//ASUS_BSP Zhengwei "porting sensor ATD"
 
 	return rc;
 }

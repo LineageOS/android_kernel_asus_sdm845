@@ -41,6 +41,7 @@
 #include <asm/virt.h>
 
 #include <linux/syscore_ops.h>
+#include <linux/wakeup_reason.h>//ASUS LOG WAKE UP REASON
 
 #include "irq-gic-common.h"
 
@@ -696,6 +697,10 @@ static int gic_suspend(void)
 	return 0;
 }
 
+//ASUS_BSP +++
+int gic_irq_cnt,gic_resume_irq[32];//[Power]Add these values to save IRQ's counts and number
+//ASUS_BSP ---
+
 static void gic_show_resume_irq(struct gic_chip_data *gic)
 {
 	unsigned int i;
@@ -712,6 +717,11 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 		pending[i] &= enabled;
 	}
 
+//[Power]Add these values to save IRQ's counts and number +++
+	gic_irq_cnt = 0;
+	memset(gic_resume_irq,0,32);
+//[Power]Add these values to save IRQ's counts and number ---
+
 	for (i = find_first_bit((unsigned long *)pending, gic->irq_nr);
 	     i < gic->irq_nr;
 	     i = find_next_bit((unsigned long *)pending, gic->irq_nr, i+1)) {
@@ -722,7 +732,18 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 		if (desc == NULL)
 			name = "stray irq";
 		else if (desc->action && desc->action->name)
+		{
 			name = desc->action->name;
+			//ASUS BSP +++
+			log_wakeup_reason(irq);//ASUS_BSP framework will check /sys/kernel/wakeup_reasons/last_resume_reason
+
+			if(gic_irq_cnt < 32)
+			{
+				gic_resume_irq[gic_irq_cnt] = irq;
+				gic_irq_cnt++;
+			}
+			//ASUS BSP ---
+		}
 
 		pr_warn("%s: %d triggered %s\n", __func__, irq, name);
 	}
