@@ -9,6 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+//#define DEBUG 1
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/firmware.h>
@@ -49,7 +50,9 @@
 #include "../wcd9xxx-resmgr-v2.h"
 #include "../wcdcal-hwdep.h"
 #include "wcd934x-dsd.h"
-
+//snake +++
+#include <linux/proc_fs.h>
+//snake ---
 #define WCD934X_RATES_MASK (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |\
 			    SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_48000 |\
 			    SNDRV_PCM_RATE_96000 | SNDRV_PCM_RATE_192000 |\
@@ -153,6 +156,7 @@ static const struct snd_kcontrol_new name##_mux = \
 
 #define WCD934X_DIG_CORE_COLLAPSE_TIMER_MS  (5 * 1000)
 
+struct snd_soc_codec *registered_codec;
 enum {
 	POWER_COLLAPSE,
 	POWER_RESUME,
@@ -4630,6 +4634,7 @@ static int tavil_codec_enable_adc(struct snd_soc_dapm_widget *w,
 
 	dev_dbg(codec->dev, "%s: event:%d\n", __func__, event);
 
+/*ASUS_BSP++ remove HPF from amic1-4
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		tavil_codec_set_tx_hold(codec, w->reg, true);
@@ -4637,7 +4642,7 @@ static int tavil_codec_enable_adc(struct snd_soc_dapm_widget *w,
 	default:
 		break;
 	}
-
+ASUS_BSP--*/
 	return 0;
 }
 
@@ -5126,14 +5131,14 @@ static const struct tavil_reg_mask_val tavil_pa_disable[] = {
 };
 
 static const struct tavil_reg_mask_val tavil_ocp_en_seq[] = {
-	{ WCD934X_RX_OCP_CTL, 0x0F, 0x02 }, /* OCP number of attempts is 2 */
+	{ WCD934X_RX_OCP_CTL,  0xFF, 0x3F }, /* OCP number of attempts is F,current is 440MA */
 	{ WCD934X_HPH_OCP_CTL, 0xFA, 0x3A }, /* OCP current limit */
 	{ WCD934X_HPH_L_TEST, 0x01, 0x01 }, /* Enable HPHL OCP */
 	{ WCD934X_HPH_R_TEST, 0x01, 0x01 }, /* Enable HPHR OCP */
 };
 
 static const struct tavil_reg_mask_val tavil_ocp_en_seq_1[] = {
-	{ WCD934X_RX_OCP_CTL, 0x0F, 0x02 }, /* OCP number of attempts is 2 */
+	{ WCD934X_RX_OCP_CTL,  0xFF, 0x3F }, /* OCP number of attempts is F,current is 440MA  */
 	{ WCD934X_HPH_OCP_CTL, 0xFA, 0x3A }, /* OCP current limit */
 };
 
@@ -9389,7 +9394,7 @@ static const struct tavil_reg_mask_val tavil_codec_reg_defaults[] = {
 	{WCD934X_CDC_TX6_TX_PATH_CFG1, 0x01, 0x00},
 	{WCD934X_CDC_TX7_TX_PATH_CFG1, 0x01, 0x00},
 	{WCD934X_CDC_TX8_TX_PATH_CFG1, 0x01, 0x00},
-	{WCD934X_RX_OCP_CTL, 0x0F, 0x02}, /* OCP number of attempts is 2 */
+	{WCD934X_RX_OCP_CTL, 0xFF, 0x3F}, /* OCP number of attempts is F,current is 440MA */
 	{WCD934X_HPH_OCP_CTL, 0xFF, 0x3A}, /* OCP current limit */
 	{WCD934X_HPH_L_TEST, 0x01, 0x01},
 	{WCD934X_HPH_R_TEST, 0x01, 0x01},
@@ -10083,6 +10088,78 @@ done:
 	return ret;
 }
 
+//modify for headset status +++
+#define HEADSET_STATUS_PROC_FILE "driver/headset_status"
+ 
+static struct proc_dir_entry *headset_status_proc_file;
+
+static ssize_t headset_status_proc_read(struct file *filp, char __user *buff, size_t len, loff_t *off)
+{
+       char messages[256];
+       struct tavil_priv *tavil;
+
+		if (!registered_codec) {
+			pr_err("%s: Invalid params, NULL codec\n", __func__);
+			return 0;
+		}
+		
+	    tavil= snd_soc_codec_get_drvdata(registered_codec);
+	    
+		if (!tavil) {
+			pr_err("%s: Invalid params, NULL tavil\n", __func__);
+			return 0;
+		}
+
+       if (*off)
+			return 0;
+
+       memset(messages, 0, sizeof(messages));
+       if (len > 256)
+			len = 256;
+
+	   switch (tavil->mbhc->wcd_mbhc.current_plug) {
+	   case MBHC_PLUG_TYPE_HEADSET:
+			   sprintf(messages, "1\n");
+			   break;
+	   case MBHC_PLUG_TYPE_HEADPHONE:
+			   sprintf(messages, "2\n");
+			   break;
+	   case MBHC_PLUG_TYPE_HIGH_HPH:
+			   sprintf(messages, "3\n");
+			   break;
+	   case MBHC_PLUG_TYPE_GND_MIC_SWAP:
+			   sprintf(messages, "4\n");
+			   break;
+	   case MBHC_PLUG_TYPE_ANC_HEADPHONE:
+			   sprintf(messages, "5\n");
+			   break;
+	   default:
+			   sprintf(messages, "0\n");
+			   break;
+	   }
+
+       if (copy_to_user(buff, messages, len))
+               return -EFAULT;
+
+       (*off)++;
+       return len;
+}
+
+static struct file_operations headset_status_proc_ops = {
+      .read = headset_status_proc_read,
+};
+
+static void create_headset_status_proc_file(void)
+{
+	printk("create_headset_status_proc_file\n");
+	headset_status_proc_file = proc_create(HEADSET_STATUS_PROC_FILE, 0666, NULL, &headset_status_proc_ops);
+
+	if (headset_status_proc_file == NULL)
+		printk("create_headset_status_proc_file failed\n");
+
+}
+//modify for headset status ---
+
 static int tavil_soc_codec_probe(struct snd_soc_codec *codec)
 {
 	struct wcd9xxx *control;
@@ -10091,7 +10168,7 @@ static int tavil_soc_codec_probe(struct snd_soc_codec *codec)
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int i, ret;
 	void *ptr = NULL;
-
+	printk("[Audio][Debug] tavil_soc_codec_probe \n");
 	control = dev_get_drvdata(codec->dev->parent);
 
 	dev_info(codec->dev, "%s()\n", __func__);
@@ -10139,6 +10216,7 @@ static int tavil_soc_codec_probe(struct snd_soc_codec *codec)
 	}
 
 	tavil->codec = codec;
+	registered_codec = tavil->codec;
 	for (i = 0; i < COMPANDER_MAX; i++)
 		tavil->comp_enabled[i] = 0;
 
@@ -10244,7 +10322,6 @@ static int tavil_soc_codec_probe(struct snd_soc_codec *codec)
 	}
 
 	snd_soc_dapm_sync(dapm);
-
 	tavil_wdsp_initialize(codec);
 
 	/*
@@ -10252,6 +10329,10 @@ static int tavil_soc_codec_probe(struct snd_soc_codec *codec)
 	 * can be released allowing the codec to go to SVS2.
 	 */
 	tavil_vote_svs(tavil, false);
+
+//modify for headset status +++
+	create_headset_status_proc_file();
+//modify for headset status ---
 
 	return ret;
 

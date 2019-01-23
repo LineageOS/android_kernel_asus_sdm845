@@ -35,6 +35,13 @@ struct audio_cal_reg {
 	struct audio_cal_callbacks	callbacks;
 };
 
+/* ASUS_BSP +++ */
+struct headset_imp_val {
+	uint32_t	ZL;
+	uint32_t	ZR;
+};
+/* ASUS_BSP --- */
+
 int audio_cal_register(int num_cal_types, struct audio_cal_reg *reg_data);
 int audio_cal_deregister(int num_cal_types, struct audio_cal_reg *reg_data);
 
