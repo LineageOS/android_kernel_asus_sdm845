@@ -43,3 +43,5 @@ obj-$(CONFIG_SND_SOC_MSM_HDMI_CODEC_RX) += msm_hdmi_codec_rx.o
 obj-$(CONFIG_SND_SOC_AW87339) += aw87339_audio_rcv.o \
 								aw87339_audio_spk.o
 
+#for nxp AMP
+obj-$(CONFIG_SND_SOC_TFA9874) += tfa9874/
