@@ -38,3 +38,8 @@ wcd-core-objs	+= wcd934x/wcd934x-tables.o
 
 obj-$(CONFIG_WCD9XXX_CODEC_CORE) += wcd-core.o
 obj-$(CONFIG_SND_SOC_MSM_HDMI_CODEC_RX) += msm_hdmi_codec_rx.o
+
+#for AWINIC AW889X Smart K PA
+obj-$(CONFIG_SND_SOC_AW87339) += aw87339_audio_rcv.o \
+								aw87339_audio_spk.o
+
