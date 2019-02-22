@@ -1787,6 +1787,15 @@ void asus_hvdcp3_wa(struct smb_charger *chg)
             CHG_DBG_E("%s: Failed to set USBIN_CURRENT_LIMIT\n", __func__);
         chg->asus_chg->last_icl_cfg = 0x42;
         power_supply_changed(chg->batt_psy);
+    } else if (!chg->pd_active && asus_flow_done_flag && !chg->asus_chg->adc_redet_flag && ((ASUS_ADAPTER_ID == ADC_NOT_READY) ||
+                    !((chg->asus_chg->asus_charging_type == HVDCP_ASUS_200K_2A) ||
+                    (chg->asus_chg->asus_charging_type == HVDCP_OTHERS_1P5A)))) { // rerun adc detection for QC3 if ASUS_ID not correctly set
+        chg->asus_chg->adc_redet_flag = true;
+        chg->asus_chg->asus_charging_type = UNDEFINED;
+        chg->asus_chg->dual_charge = UNDEFINE;
+        ASUS_ADAPTER_ID = ADC_NOT_READY;
+        chg->asus_chg->asus_qc_flag = 3;
+        asus_adapter_adc_det(chg);
     }
 }
 
@@ -2344,6 +2353,7 @@ void reset_icl_for_nonstandard_ac(void)
                     // Non-QC falls to others
                 }
             case OTHERS:
+            default:
                 if (3 == asus_chg->ufp_mode && !asus_chg->legacy_cable_flag && 0 == asus_chg->asus_qc_flag) {
                     asus_chg->asus_charging_type = TYPEC_3P0A;
                     usb_max_current = 3000;
@@ -2368,12 +2378,12 @@ void reset_icl_for_nonstandard_ac(void)
                     }
                 }
                 break;
-            default:
-                usb_max_current = 500;
-                asus_chg->asus_charging_type = UNDEFINED;
-                asus_chg->dual_charge = SINGLE;
-                asus_chg->quick_charge_ac_flag = 0;
-                break;
+            //~ default:
+                //~ usb_max_current = 500;
+                //~ asus_chg->asus_charging_type = UNDEFINED;
+                //~ asus_chg->dual_charge = SINGLE;
+                //~ asus_chg->quick_charge_ac_flag = 0;
+                //~ break;
         }
     }
 
@@ -2732,8 +2742,10 @@ post_proc:
     schedule_delayed_work(&cable_capability_check_work, msecs_to_jiffies(5000));
 
     // start soft jeita
-    cancel_delayed_work(&chg->asus_chg->asus_batt_temp_work);
-    schedule_delayed_work(&chg->asus_chg->asus_batt_temp_work, msecs_to_jiffies(15000));
+    if (!chg->asus_chg->adc_redet_flag) {
+        cancel_delayed_work(&chg->asus_chg->asus_batt_temp_work);
+        schedule_delayed_work(&chg->asus_chg->asus_batt_temp_work, msecs_to_jiffies(15000));
+    }
 
 	// start legacy cable detection when not HVDCP
 	if ((0 == asus_chg->asus_qc_flag) && typec_wa_flag) {
@@ -2743,6 +2755,7 @@ post_proc:
 		asus_chg->asus_adapter_detecting_flag = false;
 	}
     asus_flow_done_flag = 1;
+    asus_chg->adc_redet_flag = false;
 
     if(adc_check_lock.active){
 		__pm_relax(&adc_check_lock);
@@ -3133,6 +3146,7 @@ void asus_handle_usb_removal(struct smb_charger *chg)
     chg->asus_chg->BR_countrycode_read_pending = false;
     asus_flow_done_flag = 0;
     ASUS_ADAPTER_ID = ADC_NOT_READY;
+    chg->asus_chg->adc_redet_flag = false;
     if(g_CDP_WA)
         --g_CDP_WA;
 
@@ -3733,6 +3747,7 @@ void asus_charger_init_config(struct smb_charger *chg)
     chg->asus_chg->last_batt_health = POWER_SUPPLY_HEALTH_GOOD;
     chg->asus_chg->bat_ovp_flag = false;
     chg->asus_chg->last_icl_cfg = 0;
+    chg->asus_chg->adc_redet_flag = false;
 
 #ifdef ASUS_FACTORY_BUILD
     charger_limit_setting = 70;

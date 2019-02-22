@@ -119,6 +119,7 @@ struct asus_charger{
 	int last_batt_health;
 	bool bat_ovp_flag;
 	u8 last_icl_cfg;
+	bool adc_redet_flag;
 };
 
 struct smb_dt_props {
