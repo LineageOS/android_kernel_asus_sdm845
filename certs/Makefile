@@ -53,13 +53,11 @@ $(obj)/signing_key.pem: $(obj)/x509.genkey
 	@$(kecho) "### needs to be run as root, and uses a hardware random"
 	@$(kecho) "### number generator if one is available."
 	@$(kecho) "###"
-
 	$(Q)openssl req -new -nodes -utf8 -$(CONFIG_MODULE_SIG_HASH) -days 36500 \
 		-batch -x509 -config $(obj)/x509.genkey \
 		-outform PEM -out $(obj)/signing_key.pem \
 		-keyout $(obj)/signing_key.pem \
 		$($(quiet)redirect_openssl)
-
 	@$(kecho) "###"
 	@$(kecho) "### Key pair generated, use fixed key from build/target/product/security/signing_key.x509 and signing_key.pem ."
 	@$(kecho) "###"
