@@ -264,8 +264,7 @@
     /delete-node/ qcom,ascent_3450mah;
     /delete-node/ qcom,demo_6000mah;
     #include "3282511_Asus_C11P1708_3150mAh_4p357V_averaged_MasterSlave_Nov11th2018_R2_PMI8998GUI20058.dtsi"
-    #include "3282511_Asus_C11P1708_3150mAh_4p3V_averaged_MasterSlave_May7th2018_PMI8998GUI20058_Sys_And_Profile.dtsi"
-    #include "3282511_Asus_C11P1708_3150mAh_4p25V_averaged_MasterSlave_May7th2018_PMI8998GUI20058_Sys_And_Profile.dtsi"
+    #include "03782958_Asus_C11P1708_3150mAh_All_FV_averaged_MasterSlave_Dec14th2018_PMI8998GUI20058.dtsi"
 };
 /* ASUS_BSP steven1_wang: add battery profile for draco --- */
 

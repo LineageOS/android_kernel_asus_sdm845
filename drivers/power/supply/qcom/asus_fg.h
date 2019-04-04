@@ -1,6 +1,7 @@
 #ifndef __ASUS_FG_H
 #define __ASUS_FG_H
 
+#include <linux/wakelock.h>
 #include "linux/asusdebug.h"
 
 #define BATTERY_TAG "[BAT][BMS]"
@@ -22,6 +23,8 @@ extern int g_bat_reload_cond;
 
 #define CYCLE_COUNT_DATA_MAGIC  0x620E
 #define CYCLE_COUNT_FILE_NAME   "/dev/block/bootdevice/by-name/batinfo"
+#define BACKUP_BATINFO_NAME   "/sdcard/.bs"
+#define BACKUP_BATINFO_SIZE   (1024*16)
 #define Charging		0
 #define DisCharging		1
 
@@ -106,6 +109,26 @@ struct BATT_SAFETY_UPGRADE_PARAMS{
 	int float_voltage_uv;
 	int vbat_full_mv;
 };
+
+//ASUS_BS battery health upgrade +++
+#define BAT_HEALTH_NUMBER_MAX 21
+struct BAT_HEALTH_DATA{
+	int magic;
+	int bat_current;
+	unsigned long long bat_current_avg;
+	unsigned long long accumulate_time; //second
+	unsigned long long accumulate_current; //uA
+	int bat_health;
+	unsigned long start_time;
+	unsigned long end_time;
+};
+
+struct BAT_HEALTH_DATA_BACKUP{
+    char date[20];
+    int health;
+};
+extern void asus_add_battery_health_fun(void);
+//ASUS_BSP battery health upgrade ---
 
 extern struct BATT_SAFETY_UPGRADE_PARAMS batt_safety_upgrade_params[];
 extern struct CYCLE_COUNT_DATA g_cycle_count_data;

@@ -12,6 +12,7 @@
 #include <linux/extcon.h>
 #include <linux/syscalls.h>
 #include <linux/reboot.h>
+#include <linux/rtc.h>
 #include "fg-core.h"
 #include "fg-reg.h"
 #include "asus_fg.h"
@@ -27,6 +28,8 @@ bool g_wp_enable = false;
 char g_battery_version[40] = {0};
 bool g_ready_to_report_1 = false;
 int g_cyclecount_initialized = 0;
+int init_backup_batinfo_ok = -1;
+
 unsigned long g_last_batt_time[BAT_TIME_TYPE_COUNT] = {0};
 
 extern bool g_boot_complete;
@@ -61,6 +64,71 @@ struct CYCLE_COUNT_DATA g_cycle_count_data = {
     //~ .high_temp_vol_time = 0,
     .reload_condition = 0
 };
+
+//ASUS_BS battery health upgrade +++
+#define	BATTERY_HEALTH_UPGRADE_TIME 1 //ASUS_BS battery health upgrade
+#define	BATTERY_METADATA_UPGRADE_TIME 60 //ASUS_BS battery health upgrade
+#define BAT_HEALTH_DATA_OFFSET 0
+#define BAT_HEALTH_DATA_OFFSET1 2048
+#define BAT_HEALTH_DATA_MAGIC  0x86
+#define BAT_HEALTH_DATA_BACKUP_MAGIC 0x87
+#define ZS620KL_DESIGNED_CAPACITY 3150 //mAh
+#define BAT_HEALTH_DATA_SD_FILE_NAME   "/sdcard/.bh"
+#define BAT_HEALTH_START_LEVEL 70
+#define BAT_HEALTH_END_LEVEL 100
+static bool g_bathealth_initialized = false;
+static bool g_bathealth_trigger = false;
+static bool g_last_bathealth_trigger = false;
+static bool g_health_debug_enable = false;
+static bool g_health_upgrade_enable = true;
+static int g_health_upgrade_index = 0;
+static int g_health_upgrade_start_level = BAT_HEALTH_START_LEVEL;
+static int g_health_upgrade_end_level = BAT_HEALTH_END_LEVEL;
+static int g_health_upgrade_upgrade_time = BATTERY_HEALTH_UPGRADE_TIME;
+static int g_bat_health_avg;
+
+int batt_health_csc_backup(void);
+
+static struct BAT_HEALTH_DATA g_bat_health_data = {
+    .magic = BAT_HEALTH_DATA_MAGIC,
+    .bat_current = 0,
+    .bat_current_avg = 0,
+    .accumulate_time = 0,
+    .accumulate_current = 0,
+    .bat_health = 0,
+    .start_time = 0,
+    .end_time = 0
+};
+
+static struct BAT_HEALTH_DATA_BACKUP g_bat_health_data_backup[BAT_HEALTH_NUMBER_MAX] = {
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0},
+	{"", 0}
+};
+
+struct delayed_work battery_health_work;
+struct delayed_work battery_metadata_work;
+struct wake_lock bat_health_lock;
+//ASUS_BS battery health upgrade ---
+
 
 struct delayed_work check_water_proof_work;
 extern int fg_bp_params_config(struct fg_chip *chip);
@@ -762,7 +830,7 @@ void asus_set_battery_version(void)
     char Cell_Supplier_Code = 'X';
     char battery_id[3] = "00";
     char profile_version[5] = "0001";
-    char sw_driver_version[15] = "90.04.101.121";
+    char sw_driver_version[15] = "90.04.101.150";
 
     if(g_fgChip->batt_id_ohms <= 56100 && g_fgChip->batt_id_ohms >= 45900) {
         Cell_Supplier_Code = 'O';
@@ -994,9 +1062,9 @@ static int file_op(const char *filename, loff_t offset, char *buf, int length, i
 	set_fs(KERNEL_DS);
 
 	if(FILE_OP_READ == operation)
-		filep= sys_open(filename, O_RDONLY, 0666);
+		filep= sys_open(filename, O_RDONLY|O_CREAT, 0666);
 	else if(FILE_OP_WRITE == operation)
-		filep= sys_open(filename, O_RDWR, 0666);
+		filep= sys_open(filename, O_RDWR|O_CREAT, 0666);
 	else {
 		pr_err("Unknown partition op err!\n");
 		rc = -1;
@@ -1126,6 +1194,48 @@ int asus_batt_cycle_count_init(void)
 	return 0;
 }
 
+int check_sdcard_file_ok(void)
+{
+	int rc;
+
+	rc = (int)sys_access("/sdcard", 0);
+	if(rc < 0){
+		pr_err("data partion is not ok!\n");
+	}
+	return rc;
+}
+
+int asus_backup_batinfo_to_sdcard(void)
+{
+	char *buf = NULL;
+	int rc;
+
+	buf = kmalloc(BACKUP_BATINFO_SIZE, GFP_KERNEL);
+	if(buf == NULL){
+		pr_err("%s:kmalloc buf size fail!\n", __func__);
+		return -1;
+	}
+
+	rc = file_op(CYCLE_COUNT_FILE_NAME, CYCLE_COUNT_DATA_OFFSET,
+		buf, BACKUP_BATINFO_SIZE, FILE_OP_READ);
+	if(rc < 0){
+		pr_err("%s:read %s failed!\n", __func__, CYCLE_COUNT_FILE_NAME);
+		goto ERROR;
+	}
+
+	rc = file_op(BACKUP_BATINFO_NAME, CYCLE_COUNT_DATA_OFFSET,
+		buf, BACKUP_BATINFO_SIZE, FILE_OP_WRITE);
+	if(rc < 0){
+		pr_err("%s:write %s failed!\n", __func__, BACKUP_BATINFO_NAME);
+		goto ERROR;
+	}
+
+ERROR:
+	kfree(buf);
+	buf = NULL;
+	return rc;
+}
+
 static int write_back_cycle_count_data(void)
 {
 	int rc = 0;
@@ -1138,6 +1248,9 @@ static int write_back_cycle_count_data(void)
 		(char *)&g_cycle_count_data, sizeof(struct CYCLE_COUNT_DATA), FILE_OP_WRITE);
 	if(rc<0)
 		pr_err("%s:Write file:%s err!\n", __FUNCTION__, CYCLE_COUNT_FILE_NAME);
+
+	init_backup_batinfo_ok = asus_backup_batinfo_to_sdcard();
+
     // Notify ims battery condition
     notify_battery_condition(g_cycle_count_data.reload_condition);
     return rc;
@@ -1298,6 +1411,7 @@ static void calculation_time_fun(int type)
     }
 }
 
+extern int asus_clear_reload_battery_profile(struct fg_chip *chip);
 void asus_batt_safety_upgrade_work(struct work_struct *work)
 {
     struct fg_chip *chip = container_of(work,
@@ -1451,10 +1565,24 @@ done:
                 batt_safety_upgrade_params[new_condition].vbat_full_mv);
             asus_update_fv_vf(chip, batt_safety_upgrade_params[new_condition].float_voltage_uv,
                                                 batt_safety_upgrade_params[new_condition].vbat_full_mv);
+            if (2 == g_cycle_count_data.reload_condition) {
+                BAT_DBG("%s: change to condition 2, reload according profile\n", __func__);
+                ASUSEvtlog("[BAT]change to condition 2, reload according profile\n");
+                asus_clear_reload_battery_profile(chip);
+            }
         }
     }
 
 out:
+	if(g_cyclecount_initialized && (init_backup_batinfo_ok < 0) ){
+		rc = check_sdcard_file_ok();
+		if(rc < 0){
+			goto WORK;
+		}
+		init_backup_batinfo_ok = asus_backup_batinfo_to_sdcard();
+	}
+
+WORK:
     if (g_cyclecount_initialized) {
         // Polling every 1 minute when condition data initialized
         schedule_delayed_work(&chip->safety_upgrade_work, msecs_to_jiffies(60000));
@@ -1802,6 +1930,416 @@ static const struct file_operations cycle_count_fops = {
 	.release = single_release,
 };
 
+//ASUS_BS battery health upgrade +++
+void battery_health_data_reset(void){
+	g_bat_health_data.bat_current = 0;
+	g_bat_health_data.bat_current_avg = 0;
+	g_bat_health_data.accumulate_time = 0;
+	g_bat_health_data.accumulate_current = 0;
+	g_bat_health_data.start_time = 0;
+	g_bat_health_data.end_time = 0;
+	g_bathealth_trigger = false;
+	g_last_bathealth_trigger = false;
+	wake_unlock(&bat_health_lock);
+}
+
+static int resotre_bat_health(void)
+{
+	int i=0, rc = 0;
+
+#if 0
+	memset(&g_bat_health_data_backup,0,sizeof(struct BAT_HEALTH_DATA_BACKUP)*BAT_HEALTH_NUMBER_MAX);
+
+	/* Read cycle count data from emmc */
+	rc = file_op(CYCLE_COUNT_FILE_NAME, BAT_HEALTH_DATA_OFFSET1,
+		(char*)&g_bat_health_data_backup, sizeof(struct BAT_HEALTH_DATA_BACKUP)*BAT_HEALTH_NUMBER_MAX, FILE_OP_READ);
+	if(rc < 0) {
+		pr_err("Read bat health file failed!\n");
+		return -1;
+	}
+#endif
+
+	rc = batt_health_csc_backup();
+	if(rc < 0){
+		return rc;
+	}
+
+	BAT_DBG("%s: index(%d)\n",__FUNCTION__, g_bat_health_data_backup[0].health);
+	for(i=1; i<BAT_HEALTH_NUMBER_MAX;i++){
+		if(g_bat_health_data_backup[i].health)
+			BAT_DBG("%s %d",g_bat_health_data_backup[i].date, g_bat_health_data_backup[i].health);
+	}
+
+	g_health_upgrade_index = g_bat_health_data_backup[0].health;
+	g_bathealth_initialized = true;
+
+	return 0;
+}
+
+static int backup_bat_health(void)
+{
+	int bat_health, rc;
+	struct timespec ts;
+	struct rtc_time tm;
+	int health_t;
+	int count=0, i=0;
+	unsigned long long bat_health_accumulate=0;
+
+	getnstimeofday(&ts);
+	rtc_time_to_tm(ts.tv_sec,&tm);
+
+	bat_health = g_bat_health_data.bat_health;
+
+	if(g_health_upgrade_index == BAT_HEALTH_NUMBER_MAX-1){
+		g_health_upgrade_index = 1;
+	}else{
+		g_health_upgrade_index++;
+	}
+
+	sprintf(g_bat_health_data_backup[g_health_upgrade_index].date, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year+1900,tm.tm_mon+1, tm.tm_mday,tm.tm_hour,tm.tm_min,tm.tm_sec);
+	g_bat_health_data_backup[g_health_upgrade_index].health = bat_health;
+	g_bat_health_data_backup[0].health = g_health_upgrade_index;
+
+	if(g_health_debug_enable)
+		BAT_DBG("%s ===== Health history ====\n",__FUNCTION__);
+
+	for(i=1;i<BAT_HEALTH_NUMBER_MAX;i++){
+		if(g_bat_health_data_backup[i].health!=0){
+			count++;
+			bat_health_accumulate += g_bat_health_data_backup[i].health;
+			if(g_health_debug_enable)
+				BAT_DBG("%s %02d:%d\n",__FUNCTION__,i,g_bat_health_data_backup[i].health);
+		}
+	}
+
+	if(g_health_debug_enable)
+		BAT_DBG("%s ========================\n",__FUNCTION__);
+
+	if (count == 0){
+		BAT_DBG("%s battery health value is empty\n",__FUNCTION__);
+		return -1;
+	}
+
+	health_t = bat_health_accumulate*10/count;
+	g_bat_health_avg = (int)(health_t + 5)/10;
+	g_bat_health_data_backup[g_health_upgrade_index].health = g_bat_health_avg;
+
+	rc = file_op(CYCLE_COUNT_FILE_NAME, BAT_HEALTH_DATA_OFFSET1,
+		(char *)&g_bat_health_data_backup, sizeof(struct BAT_HEALTH_DATA_BACKUP)*BAT_HEALTH_NUMBER_MAX, FILE_OP_WRITE);
+	if(rc<0){
+		pr_err("%s:Write file:%s err!\n", __FUNCTION__, CYCLE_COUNT_FILE_NAME);
+	}
+
+	return rc;
+}
+
+int batt_health_csc_backup(void){
+	int rc=0, i=0;
+	char *buf2;
+	int len = 0;
+
+	buf2 = kmalloc(sizeof(char)*BAT_HEALTH_NUMBER_MAX*30, GFP_KERNEL);
+	if(!buf2){
+		BAT_DBG_E("%s kmalloc buf2 fail!\n", __func__);
+		return -1;
+	}
+
+	memset(&g_bat_health_data_backup,0,sizeof(struct BAT_HEALTH_DATA_BACKUP)*BAT_HEALTH_NUMBER_MAX);
+	memset(buf2,0,sizeof(char)*BAT_HEALTH_NUMBER_MAX*30);
+
+	rc = file_op(CYCLE_COUNT_FILE_NAME, BAT_HEALTH_DATA_OFFSET1,
+		(char*)&g_bat_health_data_backup, sizeof(struct BAT_HEALTH_DATA)*BAT_HEALTH_NUMBER_MAX, FILE_OP_READ);
+	if(rc < 0) {
+		BAT_DBG_E("Read bat health file failed!\n");
+		goto ERROR;
+	}
+
+	for(i=1;i<BAT_HEALTH_NUMBER_MAX;i++){
+		if(g_bat_health_data_backup[i].health!=0){
+			sprintf(buf2+len, "%s [%d]\n", g_bat_health_data_backup[i].date, g_bat_health_data_backup[i].health);
+			len += strlen(buf2+len);
+		}
+	}
+
+	rc = file_op(BAT_HEALTH_DATA_SD_FILE_NAME, BAT_HEALTH_DATA_OFFSET,
+	buf2, strlen(buf2), FILE_OP_WRITE);
+	if(rc < 0 ){
+		BAT_DBG_E("Write bat health file failed!\n");
+		goto ERROR;
+	}
+
+	BAT_DBG("%s Done! \n", __func__);
+ERROR:
+	kfree(buf2);
+	buf2 = NULL;
+	return rc;
+}
+
+extern int fg_get_prop_capacity(struct fg_chip *chip, int *val);
+extern int fg_get_battery_current(struct fg_chip *chip, int *val);
+static void update_battery_health(struct fg_chip *chip){
+	int bat_current, bat_capacity, delta_p;
+	unsigned long T;
+	int health_t;
+	int rc;
+
+	if(g_health_upgrade_enable != true){
+		return;
+	}
+
+	if(g_bathealth_initialized != true){
+		resotre_bat_health();
+		return;
+	}
+
+	if(!chip->online_status){
+		if(g_last_bathealth_trigger == true){
+			battery_health_data_reset();
+		}
+		return;
+	}
+
+	fg_get_prop_capacity(chip, &bat_capacity);
+
+	if(bat_capacity == g_health_upgrade_start_level && g_bat_health_data.start_time == 0){
+		wake_lock(&bat_health_lock);
+		g_bathealth_trigger = true;
+		rc = asus_qpnp_rtc_read_time(&g_bat_health_data.start_time);
+	    if (rc) {
+	        pr_err("read rtc time fail\n");
+	        return ;
+	    }
+	}
+	if(bat_capacity > g_health_upgrade_end_level){
+		g_bathealth_trigger = false;
+	}
+	if(g_last_bathealth_trigger == false && g_bathealth_trigger == false){
+		return;
+	}
+
+	if( g_bathealth_trigger ){
+		fg_get_battery_current(chip, &bat_current);
+
+		g_bat_health_data.accumulate_time += g_health_upgrade_upgrade_time;
+		g_bat_health_data.bat_current = -bat_current;
+		g_bat_health_data.accumulate_current += g_bat_health_data.bat_current;
+		g_bat_health_data.bat_current_avg = g_bat_health_data.accumulate_current/g_bat_health_data.accumulate_time;
+
+		if(g_health_debug_enable){
+			BAT_DBG("%s accumulate_time(%llu), accumulate_current(%llu), bat_current(%d), bat_current_avg(%llu), bat_capacity(%d)",
+				__FUNCTION__, g_bat_health_data.accumulate_time, g_bat_health_data.accumulate_current/1000, g_bat_health_data.bat_current/1000,
+				g_bat_health_data.bat_current_avg/1000, bat_capacity);
+		}
+
+		if(bat_capacity >= g_health_upgrade_end_level){
+			rc = asus_qpnp_rtc_read_time(&g_bat_health_data.end_time);
+		    if (rc) {
+		        pr_err("read rtc time fail\n");
+		        return ;
+		    }
+
+			delta_p = g_health_upgrade_end_level - g_health_upgrade_start_level;
+			// g_bat_health_data.bat_current_avg; //uA
+			// g_bat_health_data.accumulate_time; //second
+			T = g_bat_health_data.end_time - g_bat_health_data.start_time;
+			health_t = (g_bat_health_data.bat_current_avg*T)*10/(unsigned long long)(ZS620KL_DESIGNED_CAPACITY*delta_p)/(unsigned long long)360;
+			g_bat_health_data.bat_health = (int)((health_t + 5)/10);
+
+			//if(g_bat_health_data.bat_health > 100) g_bat_health_data.bat_health = 100;
+			//if(g_bat_health_data.bat_health < 0) g_bat_health_data.bat_health = 0;
+
+			backup_bat_health();
+			batt_health_csc_backup();
+			BAT_DBG("%s battery health = (%d,%d), T(%lu), bat_current_avg(%llu)",__FUNCTION__, g_bat_health_data.bat_health, g_bat_health_avg, T, g_bat_health_data.bat_current_avg/1000);
+			battery_health_data_reset();
+		}else{
+			//do nothing
+		}
+	}else{
+		battery_health_data_reset();
+	}
+	g_last_bathealth_trigger = g_bathealth_trigger;
+}
+
+void battery_health_upgrade_data_polling(int time) {
+	cancel_delayed_work(&battery_health_work);
+	schedule_delayed_work(&battery_health_work, time * HZ);
+}
+
+void battery_health_worker(struct work_struct *work)
+{
+	update_battery_health(g_fgChip);
+	if(g_bathealth_initialized)
+		battery_health_upgrade_data_polling(g_health_upgrade_upgrade_time); // update each hour
+	else
+		battery_health_upgrade_data_polling(60);
+}
+
+#if 0
+static void update_battery_metadata(struct fg_chip *chip){
+	//copy health data to sdcard
+	batt_health_csc_backup();
+}
+
+void battery_metadata_upgrade_data_polling(int time) {
+	cancel_delayed_work(&battery_metadata_work);
+	schedule_delayed_work(&battery_metadata_work, time * HZ);
+}
+
+void battery_metadata_worker(struct work_struct *work)
+{
+	update_battery_metadata(g_fgChip);
+	battery_metadata_upgrade_data_polling(BATTERY_METADATA_UPGRADE_TIME); // update each hour
+}
+#endif
+
+static void batt_health_upgrade_debug_enable(bool enable){
+	g_health_debug_enable = enable;
+	BAT_DBG("%s: %d\n",__FUNCTION__,g_health_debug_enable);
+}
+
+static void batt_health_upgrade_enable(bool enable){
+	g_health_upgrade_enable = enable;
+	BAT_DBG("%s: %d\n",__FUNCTION__,g_health_upgrade_enable);
+}
+
+static void batt_health_clear_value(void)
+{
+	int rc;
+	char buf[BAT_HEALTH_NUMBER_MAX*30];
+
+	memset(g_bat_health_data_backup, 0, sizeof(struct BAT_HEALTH_DATA_BACKUP)*BAT_HEALTH_NUMBER_MAX);
+	memset(buf, 0, sizeof(char)*BAT_HEALTH_NUMBER_MAX*30);
+
+	rc = file_op(CYCLE_COUNT_FILE_NAME, BAT_HEALTH_DATA_OFFSET1,
+			(char *)&g_bat_health_data_backup, sizeof(struct BAT_HEALTH_DATA_BACKUP)*BAT_HEALTH_NUMBER_MAX, FILE_OP_WRITE);
+	if(rc < 0 )
+		BAT_DBG_E("Write %s file failed!\n", CYCLE_COUNT_FILE_NAME);
+	rc = file_op(BAT_HEALTH_DATA_SD_FILE_NAME, BAT_HEALTH_DATA_OFFSET,
+			buf, sizeof(char)*BAT_HEALTH_NUMBER_MAX*30, FILE_OP_WRITE);
+	if(rc < 0 )
+		BAT_DBG_E("Write %s file failed!\n", BAT_HEALTH_DATA_SD_FILE_NAME);
+
+	BAT_DBG("clear batt health value!\n");
+}
+
+static int batt_health_config_proc_show(struct seq_file *buf, void *data)
+{
+	int count=0, i=0;
+	unsigned long long bat_health_accumulate=0;
+
+	seq_printf(buf, "start level:%d\n", g_health_upgrade_start_level);
+	seq_printf(buf, "end level:%d\n", g_health_upgrade_end_level);
+	seq_printf(buf, "upgrade time:%d\n", g_health_upgrade_upgrade_time);
+	seq_printf(buf, "enable debug:%d\n", g_health_debug_enable);
+	seq_printf(buf, "enable upgrade:%d\n", g_health_upgrade_enable);
+
+	for(i=1;i<BAT_HEALTH_NUMBER_MAX;i++){
+		if(g_bat_health_data_backup[i].health!=0){
+			count++;
+			bat_health_accumulate += g_bat_health_data_backup[i].health;
+		}
+	}
+
+	g_bat_health_avg = ((bat_health_accumulate*10/count) + 5)/10;
+
+	seq_printf(buf, "health_avg: %d\n", g_bat_health_avg);
+
+	return 0;
+}
+
+static int batt_health_config_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, batt_health_config_proc_show, NULL);
+}
+
+static ssize_t batt_health_config_write(struct file *file,const char __user *buffer,size_t count,loff_t *pos)
+{
+	int command=0;
+	int value = 0;
+	char buf[30] = {0};
+	size_t buf_size;
+	char *start = buf;
+
+	buf_size = min(count, (size_t)(sizeof(buf)-1));
+	if (copy_from_user(buf, buffer, buf_size)) {
+		BAT_DBG_E("Failed to copy from user\n");
+		return -EFAULT;
+	}
+	buf[buf_size] = 0;
+
+	sscanf(start, "%d", &command);
+	while (*start++ != ' ');
+	sscanf(start, "%d", &value);
+
+	switch(command){
+		case 1:
+			g_health_upgrade_start_level = value;
+			BAT_DBG("health upgrade start_level = %d;\n", value);
+		break;
+		case 2:
+			g_health_upgrade_end_level = value;
+			BAT_DBG("health upgrade end_level = %d;\n", value);
+		break;
+		case 3:
+			g_health_upgrade_upgrade_time = value;
+			BAT_DBG("health upgrade time = %d;\n", value);
+		break;
+
+		case 4: //clear battery health value
+			batt_health_clear_value();
+		break;
+
+		case 5: // disable battery health debug log
+			batt_health_upgrade_debug_enable(false);
+		break;
+
+		case 6: // enable battery health debug log
+			batt_health_upgrade_debug_enable(true);
+		break;
+
+		case 7: // disable battery health upgrade
+			batt_health_upgrade_enable(false);
+			break;
+
+		case 8: // enable battery health upgrade
+			batt_health_upgrade_enable(true);
+			break;
+
+		default:
+			BAT_DBG("input error!Now return\n");
+			return count;
+	}
+
+	return count;
+}
+
+static const struct file_operations batt_health_config_fops = {
+	.owner = THIS_MODULE,
+	.open = batt_health_config_proc_open,
+	.read = seq_read,
+	.write = batt_health_config_write,
+	.release = single_release,
+};
+
+void asus_add_battery_health_fun(void)
+{
+	INIT_DELAYED_WORK(&battery_health_work, battery_health_worker); //battery_health_work
+	wake_lock_init(&bat_health_lock, WAKE_LOCK_SUSPEND, "bat_health_lock");
+	battery_health_data_reset();
+	schedule_delayed_work(&battery_health_work, 60 * HZ);
+}
+
+static void create_batt_health_config_proc_file(void)
+{
+	struct proc_dir_entry *proc_file = proc_create("driver/batt_health_config", 0644, NULL, &batt_health_config_fops);
+	if (!proc_file) {
+		BAT_DBG_E("[Proc]%s failed!\n", __func__);
+	}
+	return;
+}
+//ASUS_BS battery health upgrade ---
+
 static void create_batt_cycle_count_proc_file(void)
 {
 	struct proc_dir_entry *asus_batt_cycle_count_dir = proc_mkdir("Batt_Cycle_Count", NULL);
@@ -1844,6 +2382,7 @@ void asus_procfs_create(void)
 	create_liquid_low_bound_proc_file();
 	create_thermal_test_proc_file();
 	create_batt_cycle_count_proc_file();
+	create_batt_health_config_proc_file(); //battery health upgrade
 #ifdef ASUS_FACTORY_BUILD
 	create_asus_ATD_gaugeIC_status_interface();
 	create_asus_ATD_battery_current_interface();
@@ -2031,7 +2570,6 @@ int asus_set_RCONN_RECORED(int val)
 	return asus_set_record(val,RECORD_RCONN);
 }
 
-extern int asus_clear_reload_battery_profile(struct fg_chip *chip);
 void asus_check_rconn(void)
 {
 	int flag = 1; //need to check

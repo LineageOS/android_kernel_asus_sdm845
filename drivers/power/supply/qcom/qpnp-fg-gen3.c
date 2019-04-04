@@ -706,7 +706,7 @@ static int fg_get_battery_resistance(struct fg_chip *chip, int *val)
 
 #define BATT_CURRENT_NUMR	488281
 #define BATT_CURRENT_DENR	1000
-static int fg_get_battery_current(struct fg_chip *chip, int *val)
+int fg_get_battery_current(struct fg_chip *chip, int *val)
 {
 	int rc = 0;
 	int64_t temp = 0;
@@ -916,7 +916,7 @@ static bool is_debug_batt_id(struct fg_chip *chip)
 #define DEBUG_BATT_SOC	67
 #define BATT_MISS_SOC	50
 #define EMPTY_SOC	0
-static int fg_get_prop_capacity(struct fg_chip *chip, int *val)
+int fg_get_prop_capacity(struct fg_chip *chip, int *val)
 {
 	int rc, msoc, ibatt_now;
 
@@ -1060,6 +1060,7 @@ out:
 	return rc;
 }
 
+static const char * draco_4p25v_profile_name_str = "03782958_asus_c11p1708_3150mah_averaged_masterslave_dec14th2018_4250";
 static int fg_get_batt_profile(struct fg_chip *chip)
 {
 	struct device_node *node = chip->dev->of_node;
@@ -1073,8 +1074,13 @@ static int fg_get_batt_profile(struct fg_chip *chip)
 		return -ENXIO;
 	}
 
-	profile_node = of_batterydata_get_best_profile(batt_node,
-				chip->batt_id_ohms / 1000, NULL);
+	if (2 == g_bat_reload_cond || 2 == g_cycle_count_data.reload_condition) { // ASUS_BSP: change to 4.25v profile
+		profile_node = of_batterydata_get_best_profile(batt_node,
+					chip->batt_id_ohms / 1000, draco_4p25v_profile_name_str);
+	} else {
+		profile_node = of_batterydata_get_best_profile(batt_node,
+					chip->batt_id_ohms / 1000, NULL);
+	}
 	if (IS_ERR(profile_node))
 		return PTR_ERR(profile_node);
 
@@ -5904,6 +5910,8 @@ static int fg_gen3_probe(struct platform_device *pdev)
 
 	device_init_wakeup(chip->dev, true);
 	schedule_delayed_work(&chip->profile_load_work, 0);
+
+	asus_add_battery_health_fun(); //battery health upgrade
 
 	pr_debug("FG GEN3 driver probed successfully\n");
 	return 0;

@@ -83,6 +83,7 @@ struct delayed_work cable_capability_check_work;
 struct delayed_work SetJeitaRTCWorker;
 struct delayed_work asus_rconn_check_work;
 struct delayed_work reset_icl_work;
+struct delayed_work reset_icl_with_override_work;
 struct wakeup_source adc_check_lock;
 struct wakeup_source ChargerModeLock;
 struct wakeup_source UsbCable_Lock;
@@ -93,7 +94,7 @@ bool g_boot_complete = false;
 bool g_ready_to_report_2 = false;
 bool g_receiver_enable = false;
 
-void reset_icl_for_nonstandard_ac(void);
+void reset_icl_for_nonstandard_ac(bool icl_override);
 
 //ASUS BSP FOR ubatterylife +++
 bool g_ubatterylife_enable_flag = 0;
@@ -1790,12 +1791,13 @@ void asus_hvdcp3_wa(struct smb_charger *chg)
     } else if (!chg->pd_active && asus_flow_done_flag && !chg->asus_chg->adc_redet_flag && ((ASUS_ADAPTER_ID == ADC_NOT_READY) ||
                     !((chg->asus_chg->asus_charging_type == HVDCP_ASUS_200K_2A) ||
                     (chg->asus_chg->asus_charging_type == HVDCP_OTHERS_1P5A)))) { // rerun adc detection for QC3 if ASUS_ID not correctly set
+        CHG_DBG_E("%s: rerun adc detection for QC3 which ASUS_ID not correctly set\n", __func__);
         chg->asus_chg->adc_redet_flag = true;
         chg->asus_chg->asus_charging_type = UNDEFINED;
         chg->asus_chg->dual_charge = UNDEFINE;
         ASUS_ADAPTER_ID = ADC_NOT_READY;
         chg->asus_chg->asus_qc_flag = 3;
-        asus_adapter_adc_det(chg);
+        asus_adapter_adc_det(chg, true);
     }
 }
 
@@ -1986,6 +1988,7 @@ static void asus_soft_jeita_recharge(struct smb_charger *chg)
 	}
 }
 
+#define AICL_LOW_RETRY_CNT_THD 5// Retry count threshold for set icl_override(1341[1]) after aicl continuous low
 static int asus_do_soft_jeita(struct smb_charger *chg)
 {
 	int ret = 0;
@@ -2004,6 +2007,8 @@ static int asus_do_soft_jeita(struct smb_charger *chg)
 	bool usb_100_wa = false;
 	bool aicl_low = false;
 	bool inov_triggered = false;
+	static int aicl_low_cnt = 0;
+	bool icl_override_flag = false;
 
 	batt_temp = asus_get_prop_batt_temp(chg);
 	batt_volt = asus_get_prop_batt_volt(chg);
@@ -2151,6 +2156,7 @@ static int asus_do_soft_jeita(struct smb_charger *chg)
             aicl_result < DCP_LIKE_AICL_RERUN_THRESH && 
             !inov_triggered) {
             aicl_low = true;
+            aicl_low_cnt++;
         }
         break;
     case SDP_0P5A:
@@ -2158,6 +2164,7 @@ static int asus_do_soft_jeita(struct smb_charger *chg)
     case UNDEFINED:
         if (aicl_result < SDP_LIKE_AICL_RERUN_THRESH) {
             aicl_low = true;
+            aicl_low_cnt++;
         }
         break;
     default:
@@ -2175,7 +2182,7 @@ static int asus_do_soft_jeita(struct smb_charger *chg)
         }
     }
 
-    CHG_DBG("aicl_result = %d, inov_triggered = %d, aicl_low = %d, usb_100_wa = %d\n", aicl_result, inov_triggered, aicl_low, usb_100_wa);
+    CHG_DBG("aicl_result = %d, inov_triggered = %d, aicl_low = %d, usb_100_wa = %d, aicl_low_cnt = %d\n", aicl_result, inov_triggered, aicl_low, usb_100_wa, aicl_low_cnt);
     if (aicl_done && aicl_low) {
         ASUSEvtlog("aicl done & low, aicl_result=%d\n", aicl_result);
     }
@@ -2193,6 +2200,12 @@ static int asus_do_soft_jeita(struct smb_charger *chg)
             CHG_DBG_E("%s: Failed to set CMD_APSD_REG\n", __func__);
     }
 
+    if (aicl_low_cnt >= AICL_LOW_RETRY_CNT_THD) {
+        CHG_DBG("%s: aicl_low_cnt = %d, larger than AICL_LOW_RETRY_CNT_THD = %d\n", __func__, aicl_low_cnt, AICL_LOW_RETRY_CNT_THD);
+        icl_override_flag = true;
+        aicl_low_cnt = 0;
+    }
+
     if (aicl_fail || usb_100_wa || aicl_low) {
         // usbin icl options(USB2.0/500mA current mode)
         ret = smblib_masked_write(chg, USBIN_ICL_OPTIONS_REG,
@@ -2200,14 +2213,19 @@ static int asus_do_soft_jeita(struct smb_charger *chg)
         if (ret < 0) {
             CHG_DBG_E("Couldn't set usbin icl options rc=%d\n", ret);
         }
-        cancel_delayed_work(&reset_icl_work);
-        schedule_delayed_work(&reset_icl_work, msecs_to_jiffies(2000));// add delay for apsd complete
+        if (!icl_override_flag) {
+            cancel_delayed_work(&reset_icl_work);
+            schedule_delayed_work(&reset_icl_work, msecs_to_jiffies(2000));// add delay for apsd complete
+        } else {
+            cancel_delayed_work(&reset_icl_with_override_work);
+            schedule_delayed_work(&reset_icl_with_override_work, msecs_to_jiffies(2000));// add delay for apsd complete
+        }
     }
 
 	return ret;
 }
 
-void reset_icl_for_nonstandard_ac(void)
+void reset_icl_for_nonstandard_ac(bool icl_override)
 {
     u8 set_icl = 0;
     int usb_max_current = 0;
@@ -2375,6 +2393,8 @@ void reset_icl_for_nonstandard_ac(void)
                         asus_chg->asus_charging_type = HVDCP_OTHERS_1P5A;
                         usb_max_current = 1500;
                         asus_chg->quick_charge_ac_flag = AC_GT_10W;
+                    } else if (2 == asus_chg->asus_qc_flag) {
+                        asus_chg->asus_charging_type = HVDCP_OTHERS_1A;
                     }
                 }
                 break;
@@ -2399,17 +2419,19 @@ void reset_icl_for_nonstandard_ac(void)
     if (set_icl > USB_ICL_MAX) {
         set_icl = USB_ICL_MAX;
     }
-	CHG_DBG("%s: legacy:%d, ufp_mode:%d sdp_like:%d, dcp_like:%d, setting mA = %d\n", __func__, asus_chg->legacy_cable_flag, asus_chg->ufp_mode, sdp_like, dcp_like, usb_max_current);
+	CHG_DBG("%s: legacy:%d, ufp_mode:%d sdp_like:%d, dcp_like:%d, setting mA = %d, icl_override = %d\n", __func__, asus_chg->legacy_cable_flag, asus_chg->ufp_mode, sdp_like, dcp_like, usb_max_current, icl_override);
     //~ vote(chg->usb_icl_votable, USB_PSY_VOTER, true, usb_max_current * 1000);
     rc = smblib_masked_write(chg, USBIN_CURRENT_LIMIT_CFG_REG,
         USBIN_CURRENT_LIMIT_MASK, set_icl);
     if (rc < 0)
         CHG_DBG_E("%s: Failed to set USBIN_CURRENT_LIMIT\n", __func__);
 
-//    // reset ICL_OVERRIDE(0x1341[1] = 1)
-//    rc = smblib_masked_write(chg, CMD_APSD_REG,
-//                ICL_OVERRIDE_BIT, ICL_OVERRIDE_BIT);
-//    CHG_DBG("%s: Set icl override after set icl by table\n", __func__);
+    // reset ICL_OVERRIDE(0x1341[1] = 1)
+    if (icl_override) {
+        rc = smblib_masked_write(chg, CMD_APSD_REG,
+                    ICL_OVERRIDE_BIT, ICL_OVERRIDE_BIT);
+        CHG_DBG("%s: Set icl override after set icl by table\n", __func__);
+    }
     // config usb usbin adapter allowance(5V to 9V) 0x1360 = 0x08
     rc = smblib_masked_write(chg, USBIN_ADAPTER_ALLOW_CFG_REG,
                 USBIN_ADAPTER_ALLOW_MASK, 0x08);
@@ -2428,7 +2450,18 @@ void asus_reset_icl_work(struct work_struct *work)
         CHG_DBG("APSD not done, delay 2s\n");
         msleep(2000); // TODO: adjust wait time
     }
-    reset_icl_for_nonstandard_ac();
+    reset_icl_for_nonstandard_ac(false);
+}
+
+void asus_reset_icl_with_override_work(struct work_struct *work)
+{
+    struct smb_charger *chg = &chip_dev->chg;
+
+    if (!is_apsd_done(chg)) {
+        CHG_DBG("APSD not done, delay 2s\n");
+        msleep(2000); // TODO: adjust wait time
+    }
+    reset_icl_for_nonstandard_ac(true);
 }
 
 #define	TYPE_C_1P5A_ICL_THD	0x36 // 1350mA / 25mA = 54 = 0x36
@@ -2475,7 +2508,7 @@ void check_legacy_for_nonstandard_ac(void)
     if(!reset)
         return;
 
-    reset_icl_for_nonstandard_ac();   
+    reset_icl_for_nonstandard_ac(false);
 }
 
 void asus_cable_cap_check_work(struct work_struct *work)
@@ -2523,7 +2556,7 @@ void asus_batt_temp_work(struct work_struct *work)
         check_legacy_for_nonstandard_ac();
         if ((true == g_legacy_det_done) || (true == g_CDP_WA_done_once)) {
 			CHG_DBG("%s reset icl after legacy det done\n",__func__);
-			reset_icl_for_nonstandard_ac();
+			reset_icl_for_nonstandard_ac(false);
 			g_legacy_det_done = false;
 		}
 		ret = asus_do_soft_jeita(chg);
@@ -2547,18 +2580,15 @@ void asus_batt_temp_work(struct work_struct *work)
     }
 }
 
-void asus_adapter_adc_work(struct work_struct *work)
+void asus_adapter_adc_process(struct asus_charger *asus_chg, bool is_rerun)
 {
-	struct asus_charger *asus_chg = container_of(work,
-					struct asus_charger,
-					asus_adapter_adc_work.work);
     struct smb_charger *chg = &chip_dev->chg;
 	int rc;
 	int usb_max_current;
 	u8 set_icl;
 	bool typec_wa_flag = false;
 
-    CHG_DBG("enter %s\n", __func__);
+    CHG_DBG("enter %s, is_rerun=%d\n", __func__, is_rerun);
     asus_chg->BR_countrycode_read_pending = 0;
 
     // set usb icl 25mA
@@ -2667,7 +2697,9 @@ set_current:
 		} else {
 			asus_chg->asus_charging_type = DCP_OTHERS_1A;
 			asus_chg->dual_charge = SINGLE;
-			asus_chg->BR_countrycode_read_pending = 1;
+			if (0 == asus_chg->asus_qc_flag) {
+				asus_chg->BR_countrycode_read_pending = 1;
+			}
 			usb_max_current = 1000;
 		}
 
@@ -2675,6 +2707,8 @@ set_current:
             asus_chg->asus_charging_type = HVDCP_OTHERS_1P5A;
             usb_max_current = 1500;
             asus_chg->quick_charge_ac_flag = AC_GT_10W;
+        } else if (2 == asus_chg->asus_qc_flag) {
+            asus_chg->asus_charging_type = HVDCP_OTHERS_1A;
         }
     }
 
@@ -2717,10 +2751,14 @@ post_proc:
     if (rc < 0)
         CHG_DBG_E("%s: Failed to set USBIN_CURRENT_LIMIT\n", __func__);
 
-    // reset ICL_OVERRIDE(0x1341[1] = 1)
-    rc = smblib_masked_write(chg, CMD_APSD_REG,
-                ICL_OVERRIDE_BIT, ICL_OVERRIDE_BIT);
-    CHG_DBG("%s: Set icl override after set icl by table\n", __func__);
+    if (!is_rerun) {// skip reset ICL_OVERRIDE in adc det rerun
+        // reset ICL_OVERRIDE(0x1341[1] = 1)
+        rc = smblib_masked_write(chg, CMD_APSD_REG,
+                    ICL_OVERRIDE_BIT, ICL_OVERRIDE_BIT);
+        CHG_DBG("%s: Set icl override after set icl by table\n", __func__);
+    } else {
+        CHG_DBG("%s: Skip reset icl override after set icl by table in adc det rerun\n", __func__);
+    }
     // config usb usbin adapter allowance(5V to 9V) 0x1360 = 0x08
     rc = smblib_masked_write(chg, USBIN_ADAPTER_ALLOW_CFG_REG,
                 USBIN_ADAPTER_ALLOW_MASK, 0x08);
@@ -2762,7 +2800,23 @@ post_proc:
     }
 }
 
-void asus_adapter_adc_det(struct smb_charger *chg)
+void asus_adapter_adc_normal_work(struct work_struct *work)
+{
+    struct asus_charger *asus_chg = container_of(work,
+                    struct asus_charger,
+                    asus_adapter_adc_normal_work.work);
+    asus_adapter_adc_process(asus_chg, false);
+}
+
+void asus_adapter_adc_rerun_work(struct work_struct *work)
+{
+    struct asus_charger *asus_chg = container_of(work,
+                    struct asus_charger,
+                    asus_adapter_adc_rerun_work.work);
+    asus_adapter_adc_process(asus_chg, true);
+}
+
+void asus_adapter_adc_det(struct smb_charger *chg, bool is_rerun)
 {
     int rc;
     u8 reg=0;
@@ -2791,9 +2845,15 @@ void asus_adapter_adc_det(struct smb_charger *chg)
 		__pm_stay_awake(&adc_check_lock);
     }
     if (chg->asus_chg->asus_qc_flag != 0) {
-        schedule_delayed_work(&chg->asus_chg->asus_adapter_adc_work, msecs_to_jiffies(ADC_WAIT_TIME_HVDCP23));
+        if (!is_rerun)
+            schedule_delayed_work(&chg->asus_chg->asus_adapter_adc_normal_work, msecs_to_jiffies(ADC_WAIT_TIME_HVDCP23));
+        else
+            schedule_delayed_work(&chg->asus_chg->asus_adapter_adc_rerun_work, msecs_to_jiffies(ADC_WAIT_TIME_HVDCP23));
     } else {
-        schedule_delayed_work(&chg->asus_chg->asus_adapter_adc_work, msecs_to_jiffies(ADC_WAIT_TIME_HVDCP0));
+        if (!is_rerun)
+            schedule_delayed_work(&chg->asus_chg->asus_adapter_adc_normal_work, msecs_to_jiffies(ADC_WAIT_TIME_HVDCP0));
+        else
+            schedule_delayed_work(&chg->asus_chg->asus_adapter_adc_rerun_work, msecs_to_jiffies(ADC_WAIT_TIME_HVDCP0));
     }
 }
 
@@ -3049,7 +3109,7 @@ void asus_handle_usb_insertion(struct work_struct *work)
         }
         asus_chg->asus_charging_type = UNDEFINED;
         asus_chg->dual_charge = UNDEFINE;
-        asus_adapter_adc_det(chg);
+        asus_adapter_adc_det(chg, false);
         return;
         break;
     case OCP_CHARGER_BIT:
@@ -3132,8 +3192,11 @@ void asus_handle_usb_removal(struct smb_charger *chg)
     ASUSEvtlog("[USB] set_chg_mode:%s\n", usb_type_str[0]);
 
     cancel_delayed_work(&chg->asus_chg->asus_handle_usb_insertion_work);
-    cancel_delayed_work(&chg->asus_chg->asus_adapter_adc_work);
+    cancel_delayed_work(&chg->asus_chg->asus_adapter_adc_normal_work);
+    cancel_delayed_work(&chg->asus_chg->asus_adapter_adc_rerun_work);
     cancel_delayed_work(&chg->asus_chg->asus_batt_temp_work);
+    cancel_delayed_work(&reset_icl_work);
+    cancel_delayed_work(&reset_icl_with_override_work);
 
     chg->asus_chg->asus_charging_type = NONE;
     chg->asus_chg->dual_charge = UNDEFINE;
@@ -3146,6 +3209,7 @@ void asus_handle_usb_removal(struct smb_charger *chg)
     chg->asus_chg->BR_countrycode_read_pending = false;
     asus_flow_done_flag = 0;
     ASUS_ADAPTER_ID = ADC_NOT_READY;
+    g_legacy_det_done = false;
     chg->asus_chg->adc_redet_flag = false;
     if(g_CDP_WA)
         --g_CDP_WA;
@@ -3806,7 +3870,8 @@ void asus_charger_init_config(struct smb_charger *chg)
 #endif
 
     INIT_DELAYED_WORK(&chg->asus_chg->asus_handle_usb_insertion_work, asus_handle_usb_insertion);
-    INIT_DELAYED_WORK(&chg->asus_chg->asus_adapter_adc_work, asus_adapter_adc_work);
+    INIT_DELAYED_WORK(&chg->asus_chg->asus_adapter_adc_normal_work, asus_adapter_adc_normal_work);
+    INIT_DELAYED_WORK(&chg->asus_chg->asus_adapter_adc_rerun_work, asus_adapter_adc_rerun_work);
     INIT_DELAYED_WORK(&chg->asus_chg->asus_batt_temp_work, asus_batt_temp_work);
     INIT_DELAYED_WORK(&charging_limit_work,asus_battery_charging_limit);
     INIT_DELAYED_WORK(&chg->asus_chg->set_usb_connector_work, asus_set_usb_connector_work);
@@ -3819,6 +3884,7 @@ void asus_charger_init_config(struct smb_charger *chg)
     INIT_DELAYED_WORK(&chg->asus_chg->legacy_det_work, asus_legacy_det_work);
     INIT_DELAYED_WORK(&asus_rconn_check_work, asus_rconn_check_work_func);
     INIT_DELAYED_WORK(&reset_icl_work, asus_reset_icl_work);
+    INIT_DELAYED_WORK(&reset_icl_with_override_work, asus_reset_icl_with_override_work);
 
     wakeup_source_init(&adc_check_lock, "adc_check_Lock");
     wakeup_source_init(&UsbCable_Lock, "UsbCable_Lock_Wake");

@@ -38,6 +38,8 @@
 #include "xt_qtaguid_print.h"
 #include "../../fs/proc/internal.h"
 
+#include <linux/inet.h>
+
 /*
  * We only use the xt_socket funcs within a similar context to avoid unexpected
  * return values.
@@ -45,6 +47,7 @@
 #define XT_SOCKET_SUPPORTED_HOOKS \
 	((1 << NF_INET_PRE_ROUTING) | (1 << NF_INET_LOCAL_IN))
 
+#define TENCENT_DNSPOD_IP "119.29.29.29"
 
 static const char *module_procdirname = "xt_qtaguid";
 static struct proc_dir_entry *xt_qtaguid_procdir;
@@ -1232,6 +1235,7 @@ static void iface_stat_update_from_skb(const struct sk_buff *skb,
 	enum ifs_tx_rx direction;
 	int bytes = skb->len;
 	int proto;
+	__be32 ip_mask;
 	//ASUS_BSP Johnny +++[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition
 	unsigned short uhDnsPort = htons(53); //Monitor port 53 for DNS
 	struct iphdr *iph;
@@ -1260,7 +1264,12 @@ static void iface_stat_update_from_skb(const struct sk_buff *skb,
 	if (proto == IPPROTO_UDP) {
 		udph = (struct udphdr *)(skb->data + iph->ihl*4);
 		if (udph->dest == uhDnsPort || udph->source == uhDnsPort) { //Calculate DNS package
-			data_counters_update_dns(&entry->totals_via_skb, 0, direction, proto, bytes);
+			//ABSP++-- Ignore tencent DNSPod/HttpDNS IP 119.29.29.29(hex addr:0x771D1D1D)
+			ip_mask = in_aton(TENCENT_DNSPOD_IP);
+			if (iph->saddr != ip_mask && iph->daddr != ip_mask) {
+				data_counters_update_dns(&entry->totals_via_skb, 0, direction, proto, bytes);
+			}
+			//ABSP+-
 		}
 	}
 	//ASUS_BSP Johnny ---[Qcom][PS][][Modify]Add the dns packet to the data stall trigger condition

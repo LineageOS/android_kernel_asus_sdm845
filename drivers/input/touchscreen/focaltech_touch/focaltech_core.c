@@ -1785,6 +1785,7 @@ static int fts_ts_suspend(struct device *dev)
         ts_data->suspended = true;
         fts_release_all_finger();
         //fts_reset_proc(200);
+        focal_psensor_disable_touch = false;
         FTS_INFO("fts_gesture_suspend() success, return 0");
         return 0;
     }

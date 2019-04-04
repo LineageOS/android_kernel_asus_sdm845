@@ -1974,6 +1974,9 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
         if (chg->asus_chg->asus_adapter_detecting_flag && (asus_get_prop_batt_capacity(chg) == 100)) {
             asus_val->intval = POWER_SUPPLY_STATUS_FULL;
             printk("[BAT][CHG] Batt_status = FULL (modified by reporting 100%%)\n");
+        } else if (chg->asus_chg->legacy_detecting_flag || g_legacy_det_done) {
+            asus_val->intval = POWER_SUPPLY_STATUS_CHARGING;
+            printk("[BAT][CHG] Batt_status = CHARGING(modified by legacy wa)\n");
         } else {
             //~ printk("[BAT][CHG] Batt_status = NOT_CHARGING\n");
             asus_val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;

@@ -26,6 +26,12 @@
 #define ENABLE_SDCARD_LOW_FS_SEEK	1
 #ifdef ENABLE_SDCARD_LOW_FS_SEEK
 #include "../fs/mount.h"
+
+static inline void copy_i_size(struct inode *dest,
+						const struct inode *src)
+{
+	dest->i_size = src->i_size;
+}
 #endif
 
 static ssize_t sdcardfs_read(struct file *file, char __user *buf,
@@ -34,6 +40,9 @@ static ssize_t sdcardfs_read(struct file *file, char __user *buf,
 	int err;
 	struct file *lower_file;
 	struct dentry *dentry = file->f_path.dentry;
+
+	printk(KERN_ERR "%s begin \n",__func__);
+
 #ifdef CONFIG_SDCARD_FS_FADV_NOACTIVE
 	struct backing_dev_info *bdi;
 #endif
@@ -54,9 +63,18 @@ static ssize_t sdcardfs_read(struct file *file, char __user *buf,
 
 	err = vfs_read(lower_file, buf, count, ppos);
 	/* update our inode atime upon a successful lower read */
+#ifndef ENABLE_SDCARD_LOW_FS_SEEK
 	if (err >= 0)
 		fsstack_copy_attr_atime(d_inode(dentry),
 					file_inode(lower_file));
+#else
+	if (err >= 0) {
+		fsstack_copy_attr_atime(d_inode(dentry),
+			file_inode(lower_file));
+		//printk(KERN_ERR "%s update i_size upon a successful lower read \n",__func__);
+		copy_i_size(d_inode(dentry),file_inode(lower_file));
+	}
+#endif
 
 	return err;
 }

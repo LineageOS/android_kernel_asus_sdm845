@@ -81,7 +81,8 @@ struct asus_version_tables{
 struct asus_charger{
 	struct delayed_work battery_poll_data_work;
 	struct delayed_work asus_handle_usb_insertion_work;
-	struct delayed_work asus_adapter_adc_work;
+	struct delayed_work asus_adapter_adc_normal_work;
+	struct delayed_work asus_adapter_adc_rerun_work;
 	struct delayed_work asus_batt_temp_work;
 	struct delayed_work set_usb_connector_work;
 	struct delayed_work check_usb_connector_work;
@@ -208,7 +209,7 @@ extern int g_asus_prj_id;
 int asus_charger_porting(struct smb2 *chip, struct platform_device *pdev);
 void asus_charger_pre_config(struct smb_charger *chg);
 void asus_handle_usb_removal(struct smb_charger *chg);
-void asus_adapter_adc_det(struct smb_charger *chg);
+void asus_adapter_adc_det(struct smb_charger *chg, bool is_rerun);
 void asus_hvdcp3_wa(struct smb_charger *chg);
 int asus_smbchg_suspend(struct device *dev);
 int asus_smbchg_resume(struct device *dev);

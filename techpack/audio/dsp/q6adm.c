@@ -2409,11 +2409,17 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology,
 	int port_idx, flags;
 	int copp_idx = -1;
 	int tmp_port = q6audio_get_port_id(port_id);
-
-	pr_debug("%s:port %#x path:%d rate:%d mode:%d perf_mode:%d,topo_id %d\n",
+	//asus_bsp++
+	if (((topology == ADM_CMD_COPP_OPEN_TOPOLOGY_ID_SPK_P) ||
+		(topology == ADM_CMD_COPP_OPEN_TOPOLOGY_ID_HP && channel_mode == 2)) && perf_mode == LEGACY_PCM_MODE ) {
+		bit_width = 24;
+		pr_err("%s: Force open adm in 24-bit for topology 0x%x\n",
+			__func__, topology);
+	}
+	//asus_bsp--
+	pr_err("%s:port %#x path:%d rate:%d mode:%d perf_mode:%d,topo_id 0x%x,bit_width %d,app_type %d\n",
 		 __func__, port_id, path, rate, channel_mode, perf_mode,
-		 topology);
-
+		 topology,bit_width,app_type);
 	port_id = q6audio_convert_virtual_to_portid(port_id);
 	port_idx = adm_validate_and_get_port_index(port_id);
 	if (port_idx < 0) {

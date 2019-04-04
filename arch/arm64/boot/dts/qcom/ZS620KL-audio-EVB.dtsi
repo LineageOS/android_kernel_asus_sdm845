@@ -59,10 +59,4 @@
   asoc-codec-names = "msm-stub-codec.1",
          "msm-ext-disp-audio-codec-rx";
 
-  qcom,usbc-analog-en1-gpio = <&wcd_usbc_analog_en1_gpio>;
-  qcom,usbc-analog-en2-gpio = <&tlmm 51 0>;
-  pinctrl-names = "aud_active", "aud_sleep";
-  pinctrl-0 = <&wcd_usbc_analog_en2_active>;
-  pinctrl-1 = <&wcd_usbc_analog_en2_idle>;
-
 };
