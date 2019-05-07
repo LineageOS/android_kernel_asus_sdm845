@@ -2084,7 +2084,7 @@ static int asus_do_soft_jeita(struct smb_charger *chg)
 			if (g_ubatterylife_enable_flag) {
 				bat_capacity = asus_get_prop_batt_capacity(chg);
 
-				if(bat_capacity > UBATLIFE_DISCHG_THD)	// >60%
+				if(bat_capacity >= UBATLIFE_DISCHG_THD)	// >60%
 					ubatlife_chg_status = UBATLIFE_DISCHG_THD;
 				else if(bat_capacity < UBATLIFE_CHG_THD)	// <58%
 					ubatlife_chg_status = UBATLIFE_CHG_THD;
