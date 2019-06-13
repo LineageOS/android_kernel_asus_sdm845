@@ -1,0 +1,416 @@
+
+/*temporary remove unused device in dtsi*/
+&soc {
+	jtag_mm0: jtagmm@7040000 {status = "disabled";};
+	jtag_mm1: jtagmm@7140000 {status = "disabled";};
+	jtag_mm2: jtagmm@7240000 {status = "disabled";};
+	jtag_mm3: jtagmm@7340000 {status = "disabled";};
+	jtag_mm4: jtagmm@7440000 {status = "disabled";};
+	jtag_mm5: jtagmm@7540000 {status = "disabled";};
+	jtag_mm6: jtagmm@7640000 {status = "disabled";};
+	jtag_mm7: jtagmm@7740000 {status = "disabled";};
+
+	csr: csr@6001000 {
+		status = "disabled";
+	};
+
+	swao_csr: csr@6b0e000 {
+		status = "disabled";
+	};
+
+	replicator_qdss: replicator@6046000 {
+		status = "disabled";
+	};
+
+	replicator_swao: replicator@6b0a000 {
+		status = "disabled";
+	};
+
+	tmc_etf_swao: tmc@6b09000 {
+		status = "disabled";
+	};
+
+	funnel_swao:funnel@0x6b08000 {
+		status = "disabled";
+	};
+
+	tpda_swao: tpda@6b01000 {
+		status = "disabled";
+	};
+
+	tpdm_swao0: tpdm@6b02000 {
+		status = "disabled";
+	};
+
+	tpdm_swao1: tpdm@6b03000 {
+		status = "disabled";
+	};
+
+	tmc_etr: tmc@6048000 {
+		status = "disabled";
+	};
+
+	tmc_etf: tmc@6047000 {
+		status = "disabled";
+	};
+
+	funnel_merg: funnel@6045000 {
+		status = "disabled";
+	};
+
+	stm: stm@6002000 {
+		status = "disabled";
+	};
+
+	hwevent: hwevent@0x014066f0 {
+		status = "disabled";
+	};
+
+	funnel_in0: funnel@0x6041000 {
+		status = "disabled";
+	};
+
+	funnel_in2: funnel@0x6043000 {
+		status = "disabled";
+	};
+
+	funnel_gfx: funnel@0x6943000 {
+		status = "disabled";
+	};
+
+	tpda: tpda@6004000 {
+		status = "disabled";
+	};
+
+	funnel_modem: funnel@6832000 {
+		status = "disabled";
+	};
+
+	tpda_modem: tpda@6831000 {
+		status = "disabled";
+	};
+
+	tpdm_modem: tpdm@6830000 {
+		status = "disabled";
+	};
+
+	funnel_lpass: funnel@6845000 {
+		status = "disabled";
+	};
+
+	funnel_lpass_1: funnel_1@6845000 {
+		status = "disabled";
+	};
+
+	tpdm_lpass: tpdm@6844000 {
+		status = "disabled";
+	};
+
+	tpdm_center: tpdm@6c28000 {
+		status = "disabled";
+	};
+
+	tpdm_north: tpdm@6a24000 {
+		status = "disabled";
+	};
+
+	tpdm_qm: tpdm@69d0000 {
+		status = "disabled";
+	};
+
+	tpda_apss: tpda@7862000 {
+		status = "disabled";
+	};
+
+	tpdm_apss: tpdm@7860000 {
+		status = "disabled";
+	};
+
+	tpda_llm_silver: tpda@78c0000 {
+		status = "disabled";
+	};
+
+	tpdm_llm_silver: tpdm@78a0000 {
+		status = "disabled";
+	};
+
+	tpda_llm_gold: tpda@78d0000 {
+		status = "disabled";
+	};
+
+	tpdm_llm_gold: tpdm@78b0000 {
+		status = "disabled";
+	};
+
+	funnel_dl_mm: funnel@6c0b000 {
+		status = "disabled";
+	};
+
+	tpdm_mm: tpdm@6c08000 {
+		status = "disabled";
+	};
+
+	funnel_turing: funnel@6861000 {
+		status = "disabled";
+	};
+
+	funnel_turing_1: funnel_1@6861000 {
+		status = "disabled";
+	};
+
+	tpdm_turing: tpdm@6860000 {
+		status = "disabled";
+	};
+
+	funnel_ddr_0: funnel@69e2000 {
+		status = "disabled";
+	};
+
+	tpdm_ddr: tpdm@69e0000 {
+		status = "disabled";
+	};
+
+	tpdm_pimem: tpdm@6850000 {
+		status = "disabled";
+	};
+
+	tpdm_prng: tpdm@684c000 {
+		status = "disabled";
+	};
+
+	tpdm_vsense: tpdm@6840000 {
+		status = "disabled";
+	};
+
+	tpda_olc: tpda@7832000 {
+		status = "disabled";
+	};
+
+	tpdm_olc: tpdm@7830000 {
+		status = "disabled";
+	};
+
+	tpda_spss: tpda@6882000 {
+		status = "disabled";
+	};
+
+	tpdm_spss: tpdm@6880000 {
+		status = "disabled";
+	};
+
+	funnel_spss: funnel@6883000 {
+		status = "disabled";
+	};
+
+	funnel_qatb: funnel@6005000 {
+		status = "disabled";
+	};
+
+	cti0_ddr0: cti@69e1000 {
+		status = "disabled";
+	};
+
+	cti0_ddr1: cti@69e4000 {
+		status = "disabled";
+	};
+
+	cti1_ddr1: cti@69e5000 {
+		status = "disabled";
+	};
+
+	cti0_dlmm: cti@6c09000 {
+		status = "disabled";
+	};
+
+	cti1_dlmm: cti@6c0a000 {
+		status = "disabled";
+	};
+
+	cti0_apss: cti@78e0000 {
+		status = "disabled";
+	};
+
+	cti1_apss: cti@78f0000 {
+		status = "disabled";
+	};
+
+	cti2_apss: cti@7900000 {
+		status = "disabled";
+	};
+
+	cti0: cti@6010000 {
+		status = "disabled";
+	};
+
+	cti1: cti@6011000 {
+		status = "disabled";
+	};
+
+	cti2: cti@6012000 {
+		status = "disabled";
+	};
+
+	cti3: cti@6013000 {
+		status = "disabled";
+	};
+
+	cti4: cti@6014000 {
+		status = "disabled";
+	};
+
+	cti5: cti@6015000 {
+		status = "disabled";
+	};
+
+	cti6: cti@6016000 {
+		status = "disabled";
+	};
+
+	cti7: cti@6017000 {
+		status = "disabled";
+	};
+
+	cti8: cti@6018000 {
+		status = "disabled";
+	};
+
+	cti9: cti@6019000 {
+		status = "disabled";
+	};
+
+	cti10: cti@601a000 {
+		status = "disabled";
+	};
+
+	cti11: cti@601b000 {
+		status = "disabled";
+	};
+
+	cti12: cti@601c000 {
+		status = "disabled";
+	};
+
+	cti13: cti@601d000 {
+		status = "disabled";
+	};
+
+	cti14: cti@601e000 {
+		status = "disabled";
+	};
+
+	cti15: cti@601f000 {
+		status = "disabled";
+	};
+
+	cti_cpu0: cti@7020000 {
+		status = "disabled";
+	};
+
+	cti_cpu1: cti@7120000 {
+		status = "disabled";
+	};
+
+	cti_cpu2: cti@7220000 {
+		status = "disabled";
+	};
+
+	cti_cpu3: cti@7320000 {
+		status = "disabled";
+	};
+
+	cti_cpu4: cti@7420000 {
+		status = "disabled";
+	};
+
+	cti_cpu5: cti@7520000 {
+		status = "disabled";
+	};
+
+	cti_cpu6: cti@7620000 {
+		status = "disabled";
+	};
+
+	cti_cpu7: cti@7720000 {
+		status = "disabled";
+	};
+
+	cti0_swao:cti@6b04000 {
+		status = "disabled";
+	};
+
+	 ipcb_tgu: tgu@6b0c000 {
+		status = "disabled";
+	};
+
+	turing_etm0 {
+		status = "disabled";
+	};
+
+	dummy_eud: dummy_sink {
+		status = "disabled";
+	};
+
+	sensor_etm0 {
+		status = "disabled";
+	};
+
+	modem_etm0 {
+		status = "disabled";
+	};
+
+	audio_etm0 {
+		status = "disabled";
+	};
+
+	spss_etm0 {
+		status = "disabled";
+	};
+
+	funnel_apss_merg: funnel@7810000 {
+		status = "disabled";
+	};
+
+	etm0: etm@7040000 {
+		status = "disabled";
+	};
+
+	etm1: etm@7140000 {
+		status = "disabled";
+	};
+
+	etm2: etm@7240000 {
+		status = "disabled";
+	};
+
+	etm3: etm@7340000 {
+		status = "disabled";
+	};
+
+	etm4: etm@7440000 {
+		status = "disabled";
+	};
+
+	etm5: etm@7540000 {
+		status = "disabled";
+	};
+
+	etm6: etm@7640000 {
+		status = "disabled";
+	};
+
+	etm7: etm@7740000 {
+		status = "disabled";
+	};
+
+	funnel_apss: funnel@7800000 {
+		status = "disabled";
+	};
+};
+
+&qupv3_se9_2uart {
+	status = "disabled";
+};
+
+&pcie1 {
+	status = "disabled";
+};

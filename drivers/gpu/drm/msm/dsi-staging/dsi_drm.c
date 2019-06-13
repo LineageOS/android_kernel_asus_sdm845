@@ -24,7 +24,10 @@
 
 #define to_dsi_bridge(x)     container_of((x), struct dsi_bridge, base)
 #define to_dsi_state(x)      container_of((x), struct dsi_connector_state, base)
-//struct dsi_bridge *g_asus_bridge = NULL;
+
+struct dsi_bridge *g_asus_bridge = NULL;
+static bool isPreEnabled = false;
+static bool isPreDisabled = false;
 static void convert_to_dsi_mode(const struct drm_display_mode *drm_mode,
 				struct dsi_display_mode *dsi_mode)
 {
@@ -139,6 +142,13 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 		return;
 	}
 
+	if(c_bridge->enabled >= 1){
+		pr_err("dsi bridge is alread pre enabled, c_bridge->enabled=%d\n", c_bridge->enabled);
+		return;
+	}
+
+	c_bridge->enabled++;
+
 	if (!c_bridge || !c_bridge->display || !c_bridge->display->panel) {
 		pr_err("Incorrect bridge details\n");
 		return;
@@ -184,6 +194,8 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 	if (rc)
 		pr_err("Continuous splash pipeline cleanup failed, rc=%d\n",
 									rc);
+	isPreEnabled = true;
+	pr_err("dsi_bridge_pre_enable end, c_bridge->enabled=%d\n", c_bridge->enabled);
 }
 
 static void dsi_bridge_enable(struct drm_bridge *bridge)
@@ -196,6 +208,18 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 		pr_err("Invalid params\n");
 		return;
 	}
+
+	if(c_bridge->enabled >= 2){
+		pr_err("dsi bridge is already enabled, c_bridge->enabled=%d\n", c_bridge->enabled);
+		return;
+	}
+
+	if(!isPreEnabled){
+		pr_err("dsi bridge should be preEnabled firstly !\n");
+		return;
+	}
+
+	c_bridge->enabled++;
 
 	if (c_bridge->dsi_mode.dsi_mode_flags &
 			(DSI_MODE_FLAG_SEAMLESS | DSI_MODE_FLAG_VRR)) {
@@ -211,7 +235,19 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 
 	if (display && display->drm_conn)
 		sde_connector_helper_bridge_enable(display->drm_conn);
+
+	isPreEnabled = false ;
+	pr_err("dsi_bridge_enable end, c_bridge->enabled=%d\n", c_bridge->enabled);
 }
+
+void asus_dsi_bridge_pre_enable(void) {
+	pr_err("enter asus_dsi_bridge_pre_enable\n");
+	if(g_asus_bridge){
+		dsi_bridge_pre_enable(&g_asus_bridge->base);
+		dsi_bridge_enable(&g_asus_bridge->base);
+	}
+}
+EXPORT_SYMBOL(asus_dsi_bridge_pre_enable);
 
 static void dsi_bridge_disable(struct drm_bridge *bridge)
 {
@@ -223,6 +259,14 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 		pr_err("Invalid params\n");
 		return;
 	}
+
+	if(c_bridge->enabled < 2) {
+		pr_err("dsi bridge is already disabled, c_bridge->enabled=%d\n", c_bridge->enabled);
+		return ;
+	}
+
+	c_bridge->enabled--;
+
 	display = c_bridge->display;
 
 	if (display && display->drm_conn)
@@ -233,6 +277,8 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 		pr_err("[%d] DSI display pre disable failed, rc=%d\n",
 		       c_bridge->id, rc);
 	}
+	isPreDisabled = true;
+	pr_err("dsi_bridge_disable end, c_bridge->enabled=%d\n", c_bridge->enabled);
 }
 
 static void dsi_bridge_post_disable(struct drm_bridge *bridge)
@@ -242,6 +288,16 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 
 	if (!bridge) {
 		pr_err("Invalid params\n");
+		return;
+	}
+
+	if(c_bridge->enabled < 1){
+		pr_err("dsi bridge is alread post disabled, c_bridge->enabled=%d\n", c_bridge->enabled);
+		return;
+	}
+	
+    if(!isPreDisabled){
+		pr_err("dsi bridge should be disable firstly !\n");
 		return;
 	}
 
@@ -263,8 +319,21 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 		SDE_ATRACE_END("dsi_bridge_post_disable");
 		return;
 	}
+
+	c_bridge->enabled--;
+	isPreDisabled = false;
+    pr_err("dsi_bridge_post_disable end, c_bridge->enabled=%d\n", c_bridge->enabled);
 	SDE_ATRACE_END("dsi_bridge_post_disable");
 }
+
+void asus_dsi_bridge_disable(void) {
+	pr_err("enter asus_dsi_bridge_disable\n");
+	if(g_asus_bridge){
+		dsi_bridge_disable(&g_asus_bridge->base);
+		dsi_bridge_post_disable(&g_asus_bridge->base);
+	}
+}
+EXPORT_SYMBOL(asus_dsi_bridge_disable);
 
 static void dsi_bridge_mode_set(struct drm_bridge *bridge,
 				struct drm_display_mode *mode,
@@ -781,6 +850,7 @@ struct dsi_bridge *dsi_drm_bridge_init(struct dsi_display *display,
 	bridge->display = display;
 	bridge->base.funcs = &dsi_bridge_ops;
 	bridge->base.encoder = encoder;
+	bridge->enabled = 0;
 
 	rc = drm_bridge_attach(dev, &bridge->base);
 	if (rc) {
@@ -789,7 +859,8 @@ struct dsi_bridge *dsi_drm_bridge_init(struct dsi_display *display,
 	}
 
 	encoder->bridge = &bridge->base;
-
+	pr_err("set g_asus_bridge to %s\n", display->name ? display->name : "null");
+	g_asus_bridge = bridge;
 	return bridge;
 error_free_bridge:
 	kfree(bridge);
@@ -802,5 +873,8 @@ void dsi_drm_bridge_cleanup(struct dsi_bridge *bridge)
 	if (bridge && bridge->base.encoder)
 		bridge->base.encoder->bridge = NULL;
 
+	g_asus_bridge = NULL;
+
 	kfree(bridge);
+
 }

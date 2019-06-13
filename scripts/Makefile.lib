@@ -312,8 +312,15 @@ $(obj)/%.dtb.S: $(obj)/%.dtb
 	$(call cmd,dt_S_dtb)
 
 quiet_cmd_dtc = DTC     $@
+
+ifeq ($(TARGET_BUILD_VARIANT),user)
+ASUS_DTSI_PATH=asus/user/
+else
+ASUS_DTSI_PATH=asus/userdebug/
+endif
+
 cmd_dtc = mkdir -p $(dir ${dtc-tmp}) ; \
-	$(CPP) $(dtc_cpp_flags) -x assembler-with-cpp -o $(dtc-tmp) $< ; \
+	$(CPP) $(dtc_cpp_flags) -I$(dir $<)$(ASUS_DTSI_PATH) -x assembler-with-cpp -o $(dtc-tmp) $< ; \
 	$(DTC) -O dtb -o $@ -b 0 \
 		-i $(dir $<) $(DTC_FLAGS) \
 		-d $(depfile).dtc.tmp $(dtc-tmp) ; \

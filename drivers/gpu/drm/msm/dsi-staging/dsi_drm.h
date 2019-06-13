@@ -30,6 +30,8 @@ struct dsi_bridge {
 
 	struct dsi_display *display;
 	struct dsi_display_mode dsi_mode;
+
+	unsigned int enabled;	//0: disabled; 1: pre_enabled; 2:enabled
 };
 
 /**

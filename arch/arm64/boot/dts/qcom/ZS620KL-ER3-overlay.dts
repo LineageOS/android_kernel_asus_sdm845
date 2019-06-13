@@ -34,6 +34,7 @@
 #include "ZS620KL-goodix-fp.dtsi"
 #include "ZS620KL-sensors.dtsi"
 #include "ZS620KL-mtp-bt-overlay.dtsi"
+#include "ZS620KL-tuned-user.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. SDM845 v2 MTP";

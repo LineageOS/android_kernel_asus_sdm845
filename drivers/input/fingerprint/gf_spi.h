@@ -107,10 +107,13 @@ struct gf_ioc_chip_info {
 
 #if defined(SUPPORT_NAV_EVENT)
 #define GF_IOC_NAV_EVENT	_IOW(GF_IOC_MAGIC, 14, gf_nav_event_t)
-#define  GF_IOC_MAXNR    15  /* THIS MACRO IS NOT USED NOW... */
+//#define  GF_IOC_MAXNR    15  /* THIS MACRO IS NOT USED NOW... */
 #else
 #define  GF_IOC_MAXNR    14  /* THIS MACRO IS NOT USED NOW... */
 #endif
+
+#define GF_IOC_IRQ_TYPE	_IOW(GF_IOC_MAGIC, 16, uint32_t)//wendy++
+#define  GF_IOC_MAXNR    17  /* THIS MACRO IS NOT USED NOW... *///wendy++
 
 //#define AP_CONTROL_CLK       1
 #define  USE_PLATFORM_BUS     1

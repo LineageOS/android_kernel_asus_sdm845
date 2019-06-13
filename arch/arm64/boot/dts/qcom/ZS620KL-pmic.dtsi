@@ -316,3 +316,19 @@
     };
 };
 
+&smb1355_charger_0 {
+	status = "disabled";
+};
+
+&smb1355_charger_1 {
+	status = "disabled";
+};
+
+&smb1355_0
+{
+	status = "disabled";
+};
+&smb1355_1
+{
+	status = "disabled";
+};

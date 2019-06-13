@@ -89,6 +89,7 @@ u8 cabc_current_mode = OFF_MODE;
 #else
 u8 cabc_current_mode = MOVING_MODE;
 #endif
+
 static ssize_t cabc_mode_switch_proc_write(struct file *filp, const char *buff, size_t len, loff_t *off)
 {
     char messages[256];
@@ -664,7 +665,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		pr_err("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
 		goto error_disable_gpio;
 	}
-
+    pr_err("[Display] panel power on------end\n");
 	goto exit;
 
 error_disable_gpio:
@@ -708,7 +709,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
 		pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
-
+    pr_err("[Display] panel power off---end\n");
 	return rc;
 }
 static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,

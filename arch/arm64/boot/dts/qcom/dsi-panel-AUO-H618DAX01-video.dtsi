@@ -801,6 +801,70 @@
 
 		qcom,dsi-display-active;
 	};
+
+	qcom,dsi-display@0 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@1 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@2 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@3 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@4 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@5 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@6 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@7 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@8 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@9 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@11 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@12 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@13 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@14 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@15 {
+		status = "disabled";
+	};
+
+	qcom,dsi-display@16 {
+		status = "disabled";
+	};
 };
 
 &tlmm {

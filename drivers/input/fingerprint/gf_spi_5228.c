@@ -71,12 +71,17 @@
 static int SPIDEV_MAJOR;
 //#define SPIDEV_MAJOR		232	/* assigned */
 
+static DEFINE_MUTEX(fp_call_bridge_lock);//wendy++
+
+extern void asus_dsi_bridge_pre_enable(void);
+extern void asus_dsi_bridge_disable(void);
 
 static DECLARE_BITMAP(minors, N_SPI_MINORS);
 static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
 static struct wake_lock fp_wakelock;
 static struct gf_dev gf;
+static uint32_t irq_type_pre = 0 ;
 
 static struct gf_key_map maps[] = {
 	{ EV_KEY, GF_KEY_INPUT_HOME },
@@ -322,8 +327,10 @@ static irqreturn_t gf_irq(int irq, void *handle)
 {
 #if defined(GF_NETLINK_ENABLE)
 	char msg = GF_NET_EVENT_IRQ;
+	pr_info("%s , enter \n", __func__);
 	wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_TIME));
 	sendnlmsg(&msg);
+	pr_info("%s , leave \n", __func__);
 #elif defined(GF_FASYNC)
 	struct gf_dev *gf_dev = &gf;
 	if (gf_dev->async)
@@ -395,11 +402,14 @@ static void gf_kernel_key_input(struct gf_dev *gf_dev, struct gf_key *gf_key)
 //report earlywakeup event (832);asus_bsp++
 	if ((gf_key->key == 832 || gf_key->key == 834) && (gf_key->value == 1))
 	{
-		pr_info("[GDX_FP]: received key 832, send earlywakeup event F22 \n");
+		pr_info("[GDX_FP]: received key 832, call panel on\n");
 		input_report_key(gf_dev->input, GF_KEY_INPUT_EARLYWAKEUP, 1);
 		input_sync(gf_dev->input);
 		input_report_key(gf_dev->input, GF_KEY_INPUT_EARLYWAKEUP, 0);
 		input_sync(gf_dev->input);
+        mutex_lock(&fp_call_bridge_lock);
+		asus_dsi_bridge_pre_enable();
+		mutex_unlock(&fp_call_bridge_lock);
 	}
 //report earlywakeup event (832);asus_bsp--
 }
@@ -408,6 +418,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct gf_dev *gf_dev = &gf;
 	struct gf_key gf_key;
+	uint32_t irq_type = 0 ;
 #if defined(SUPPORT_NAV_EVENT)
 	gf_nav_event_t nav_event = GF_NAV_NONE;
 #endif
@@ -526,6 +537,21 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		pr_info("vendor_id : 0x%x\n", info.vendor_id);
 		pr_info("mode : 0x%x\n", info.mode);
 		pr_info("operation: 0x%x\n", info.operation);
+		break;
+
+    case GF_IOC_IRQ_TYPE:
+       pr_info("%s GF_IOC_IRQ_TYPE\n", __func__);
+		if (copy_from_user(&irq_type, (void __user *)arg, sizeof(uint32_t))) {
+			retval = -EFAULT;
+			break;
+		}
+		pr_info("irq_type : 0x%x, irq_type_pre : 0x%x \n", irq_type,irq_type_pre);
+		if(irq_type_pre == 0x4000 && irq_type == 0 && gf_dev->fb_black == 1){
+			mutex_lock(&fp_call_bridge_lock);
+		    asus_dsi_bridge_disable();
+		    mutex_unlock(&fp_call_bridge_lock);
+		}
+		irq_type_pre = irq_type ;
 		break;
 
 	default:
@@ -677,13 +703,14 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 
 	if (val != MSM_DRM_EARLY_EVENT_BLANK)
 		return 0;
-	pr_info("[info] %s go to the goodix_fb_state_chg_callback value = %d\n",
-			__func__, (int)val);
+
 	gf_dev = container_of(nb, struct gf_dev, notifier);
 //	if (evdata && evdata->data && val == FB_EARLY_EVENT_BLANK && gf_dev) {
 	if (evdata && evdata->data && val == MSM_DRM_EARLY_EVENT_BLANK && gf_dev) {
 
 		blank = *(int *)(evdata->data);
+		pr_info("[info] %s go to the goodix_fb_state_chg_callback value = %d , blank = %d\n",
+			__func__, (int)val, blank);
 		switch (blank) {
 		case MSM_DRM_BLANK_POWERDOWN:
 			if (gf_dev->device_available == 1) {

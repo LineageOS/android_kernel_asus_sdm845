@@ -83,6 +83,7 @@ struct asus_charger{
 	struct delayed_work asus_handle_usb_insertion_work;
 	struct delayed_work asus_adapter_adc_normal_work;
 	struct delayed_work asus_adapter_adc_rerun_work;
+	struct delayed_work asus_qc3_wa_adc_det_work;
 	struct delayed_work asus_batt_temp_work;
 	struct delayed_work set_usb_connector_work;
 	struct delayed_work check_usb_connector_work;
@@ -121,6 +122,8 @@ struct asus_charger{
 	bool bat_ovp_flag;
 	u8 last_icl_cfg;
 	bool adc_redet_flag;
+	bool flt_chg_wa_en;
+	int flt_chg_chk_cnt;
 };
 
 struct smb_dt_props {

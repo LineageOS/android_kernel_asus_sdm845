@@ -54,6 +54,7 @@ int device = -1;
 //ASUS_BSP++
 int g_audiowizard_force_preset_state = 0;
 struct input_dev *audiowizard; 
+struct input_dev *audiowizard_channel;
 //ASUS_BSP--
 
 static bool callbacks_are_equal(struct audio_cal_callbacks *callback1,
@@ -429,6 +430,33 @@ static void send_audiowizard_state(struct input_dev *dev ,int audiowizard_state)
 	}
 }
 //ASUS_BSP--
+//sherry++
+static void send_audiowizard_channels(struct input_dev *dev ,int channels)
+{
+	if(channels == 1){
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_2,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_M,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_1,1);
+	}
+	else if (channels ==2)
+	{
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_1,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_M,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_2,1);
+	}
+	else if (channels > 2){
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_1,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_2,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_M,1);
+	}
+	else
+	{
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_1,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_2,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_M,0);
+	}
+}
+//sherry--
 static long audio_cal_shared_ioctl(struct file *file, unsigned int cmd,
 							void __user *arg)
 {
@@ -436,7 +464,7 @@ static long audio_cal_shared_ioctl(struct file *file, unsigned int cmd,
 	int32_t size;
 	struct audio_cal_basic *data = NULL;
 	struct headset_imp_val *imp_val = NULL; // ASUS_BSP +++
-
+	int audiowizard_force_channels =2;
 	pr_debug("%s\n", __func__);
 
 	switch (cmd) {
@@ -506,6 +534,20 @@ static long audio_cal_shared_ioctl(struct file *file, unsigned int cmd,
 		input_sync(audiowizard);
 		mutex_unlock(&audio_cal.cal_mutex[AUDIOWIZARD_FORCE_PRESET_TYPE]);
 		goto done;
+	//ASUS_BSP--
+	/* ASUS_BSP sherry ++ */
+	case AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL:
+	mutex_lock(&audio_cal.cal_mutex[AUDIOWIZARD_FORCE_CHANNEL_TYPE]);
+	if (copy_from_user(&audiowizard_force_channels, (void *)arg,
+				sizeof(audiowizard_force_channels))) {
+			pr_err("%s: Could not copy audiowizard_force_channels from user\n", __func__);
+ 			ret = -EFAULT;
+ 		}
+    printk("audio_cal_shared_ioctl  AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL audiowizard_force_channels %d ", audiowizard_force_channels);
+	send_audiowizard_channels(audiowizard_channel,audiowizard_force_channels);
+	input_sync(audiowizard_channel);
+	mutex_unlock(&audio_cal.cal_mutex[AUDIOWIZARD_FORCE_CHANNEL_TYPE]);
+	goto done;
 	//ASUS_BSP--
 	default:
 		pr_err("%s: ioctl not found!\n", __func__);
@@ -645,6 +687,8 @@ static long audio_cal_ioctl(struct file *f,
 //ASUS_BSP++
 #define AUDIO_SET_AUDIOWIZARD_FORCE_PRESET32	_IOWR(CAL_IOCTL_MAGIC, \
  							221, compat_uptr_t)
+#define AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL32	_IOWR(CAL_IOCTL_MAGIC, \
+							222, compat_uptr_t)
 //ASUS_BSP--
 
 static long audio_cal_compat_ioctl(struct file *f,
@@ -683,6 +727,11 @@ static long audio_cal_compat_ioctl(struct file *f,
 	//ASUS_BSP++
 	case AUDIO_SET_AUDIOWIZARD_FORCE_PRESET32:
 		cmd64 = AUDIO_SET_AUDIOWIZARD_FORCE_PRESET;
+		break;
+	//ASUS_BSP--
+	//ASUS_BSP sherry++
+	case AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL32:
+		cmd64 = AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL;
 		break;
 	//ASUS_BSP--
 	default:
@@ -732,7 +781,18 @@ static int __init audio_cal_init(void)
 	//ASUS_BSP--
 	if (ret < 0)
 		pr_err("%s: failed to register switch audiowizard_force_preset\n", __func__);
-
+//sherry for channels ++
+	audiowizard_channel = input_allocate_device();
+	if(!audiowizard_channel)
+		pr_err("%s: [Inputevent]failed to allocate inputevent audiowizard_channel\n", __func__);
+	audiowizard_channel->name = "audiowizard_channel";
+	input_set_capability(audiowizard_channel,EV_SW,SW_AUDIOWIZARD_CHANNELS_1); //sherry
+	input_set_capability(audiowizard_channel,EV_SW,SW_AUDIOWIZARD_CHANNELS_2); //sherry
+	input_set_capability(audiowizard_channel,EV_SW,SW_AUDIOWIZARD_CHANNELS_M); //sherry
+	ret = input_register_device(audiowizard_channel);
+	if (ret<0)
+		pr_err("%s: [Inputevent]failed to register inputevent audiowizard_channel\n", __func__);
+//sherry --
 	memset(&audio_cal, 0, sizeof(audio_cal));
 	mutex_init(&audio_cal.common_lock);
 	for (; i < MAX_CAL_TYPES; i++) {
@@ -749,6 +809,7 @@ static void __exit audio_cal_exit(void)
 	struct list_head *ptr, *next;
 	struct audio_cal_client_info *client_info_node;
 	input_free_device(audiowizard);
+	input_free_device(audiowizard_channel);
 	for (; i < MAX_CAL_TYPES; i++) {
 		list_for_each_safe(ptr, next,
 			&audio_cal.client_info[i]) {
