@@ -37,20 +37,20 @@
 /******************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
-#define KEY_GESTURE_U                           KEY_U
-#define KEY_GESTURE_UP                          KEY_UP
-#define KEY_GESTURE_DOWN                        KEY_DOWN
-#define KEY_GESTURE_LEFT                        KEY_LEFT
-#define KEY_GESTURE_RIGHT                       KEY_RIGHT
-#define KEY_GESTURE_O                           KEY_O
-#define KEY_GESTURE_E                           KEY_E
-#define KEY_GESTURE_M                           KEY_M
-#define KEY_GESTURE_L                           KEY_L
-#define KEY_GESTURE_W                           KEY_W
-#define KEY_GESTURE_S                           KEY_S
-#define KEY_GESTURE_V                           KEY_V
-#define KEY_GESTURE_C                           KEY_C
-#define KEY_GESTURE_Z                           KEY_Z
+#define KEY_GESTURE_U                           257
+#define KEY_GESTURE_UP                          258
+#define KEY_GESTURE_DOWN                        259
+#define KEY_GESTURE_LEFT                        260
+#define KEY_GESTURE_RIGHT                       261
+#define KEY_GESTURE_O                           262
+#define KEY_GESTURE_E                           263
+#define KEY_GESTURE_M                           264
+#define KEY_GESTURE_L                           265
+#define KEY_GESTURE_W                           266
+#define KEY_GESTURE_S                           267
+#define KEY_GESTURE_V                           268
+#define KEY_GESTURE_C                           269
+#define KEY_GESTURE_Z                           270
 
 #define GESTURE_LEFT                            0x20
 #define GESTURE_RIGHT                           0x21
