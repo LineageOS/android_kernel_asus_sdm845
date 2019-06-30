@@ -76,10 +76,11 @@ void irqtime_account_irq(struct task_struct *curr)
 	 * in that case, so as not to confuse scheduler with a special task
 	 * that do not consume any time, but still wants to run.
 	 */
-	if (hardirq_count())
-		irqtime_account_delta(irqtime, delta, CPUTIME_IRQ);
-	else if (in_serving_softirq() && curr != this_cpu_ksoftirqd())
-		irqtime_account_delta(irqtime, delta, CPUTIME_SOFTIRQ);
+        if (hardirq_count())
+                irqtime_account_delta(irqtime, delta, CPUTIME_IRQ);
+        else if (in_serving_softirq() && curr != this_cpu_ksoftirqd())
+                irqtime_account_delta(irqtime, delta, CPUTIME_SOFTIRQ);
+
 	else
 		account = false;
 

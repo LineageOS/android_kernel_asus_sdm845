@@ -31,12 +31,11 @@
 static DECLARE_HASHTABLE(uid_hash_table, UID_HASH_BITS);
 
 static DEFINE_SPINLOCK(task_time_in_state_lock); /* task->time_in_state */
-static DEFINE_SPINLOCK(uid_lock); /* uid_hash_table */
-
 static DEFINE_SPINLOCK(task_concurrent_active_time_lock);
 	/* task->concurrent_active_time */
 static DEFINE_SPINLOCK(task_concurrent_policy_time_lock);
 	/* task->concurrent_policy_time */
+static DEFINE_SPINLOCK(uid_lock); /* uid_hash_table */
 
 struct concurrent_times {
 	atomic64_t active[NR_CPUS];
@@ -456,6 +455,14 @@ void cpufreq_task_times_init(struct task_struct *p)
 	p->time_in_state = NULL;
 	spin_unlock_irqrestore(&task_time_in_state_lock, flags);
 	p->max_state = 0;
+
+	spin_lock_irqsave(&task_concurrent_active_time_lock, flags);
+	p->concurrent_active_time = NULL;
+	spin_unlock_irqrestore(&task_concurrent_active_time_lock, flags);
+
+	spin_lock_irqsave(&task_concurrent_policy_time_lock, flags);
+	p->concurrent_policy_time = NULL;
+	spin_unlock_irqrestore(&task_concurrent_policy_time_lock, flags);
 }
 
 void cpufreq_task_times_alloc(struct task_struct *p)

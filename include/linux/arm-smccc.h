@@ -201,7 +201,7 @@ asmlinkage void __arm_smccc_hvc(unsigned long a0, unsigned long a1,
 
 #define __declare_arg_0(a0, res)					\
 	struct arm_smccc_res   *___res = res;				\
-	register unsigned long r0 SMCCC_REG(0) = (u32)a0;			\
+	register u32           r0 SMCCC_REG(0) = a0;			\
 	register unsigned long r1 SMCCC_REG(1);				\
 	register unsigned long r2 SMCCC_REG(2);				\
 	register unsigned long r3 SMCCC_REG(3)
@@ -209,8 +209,8 @@ asmlinkage void __arm_smccc_hvc(unsigned long a0, unsigned long a1,
 #define __declare_arg_1(a0, a1, res)					\
 	typeof(a1) __a1 = a1;						\
 	struct arm_smccc_res   *___res = res;				\
-	register unsigned long r0 SMCCC_REG(0) = (u32)a0;			\
-	register unsigned long r1 SMCCC_REG(1) = __a1;			\
+	register u32           r0 SMCCC_REG(0) = a0;			\
+	register typeof(a1)    r1 SMCCC_REG(1) = __a1;			\
 	register unsigned long r2 SMCCC_REG(2);				\
 	register unsigned long r3 SMCCC_REG(3)
 
@@ -218,9 +218,9 @@ asmlinkage void __arm_smccc_hvc(unsigned long a0, unsigned long a1,
 	typeof(a1) __a1 = a1;						\
 	typeof(a2) __a2 = a2;						\
 	struct arm_smccc_res   *___res = res;				\
-	register unsigned long r0 SMCCC_REG(0) = (u32)a0;			\
-	register unsigned long r1 SMCCC_REG(1) = __a1;			\
-	register unsigned long r2 SMCCC_REG(2) = __a2;			\
+	register u32           r0 SMCCC_REG(0) = a0;			\
+	register typeof(a1)    r1 SMCCC_REG(1) = __a1;			\
+	register typeof(a2)    r2 SMCCC_REG(2) = __a2;			\
 	register unsigned long r3 SMCCC_REG(3)
 
 #define __declare_arg_3(a0, a1, a2, a3, res)				\
@@ -228,10 +228,10 @@ asmlinkage void __arm_smccc_hvc(unsigned long a0, unsigned long a1,
 	typeof(a2) __a2 = a2;						\
 	typeof(a3) __a3 = a3;						\
 	struct arm_smccc_res   *___res = res;				\
-	register unsigned long r0 SMCCC_REG(0) = (u32)a0;			\
-	register unsigned long r1 SMCCC_REG(1) = __a1;			\
-	register unsigned long r2 SMCCC_REG(2) = __a2;			\
-	register unsigned long r3 SMCCC_REG(3) = __a3
+	register u32           r0 SMCCC_REG(0) = a0;			\
+	register typeof(a1)    r1 SMCCC_REG(1) = __a1;			\
+	register typeof(a2)    r2 SMCCC_REG(2) = __a2;			\
+	register typeof(a3)    r3 SMCCC_REG(3) = __a3
 
 #define __declare_arg_4(a0, a1, a2, a3, a4, res)			\
 	typeof(a4) __a4 = a4;						\

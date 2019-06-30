@@ -1490,7 +1490,7 @@ bool move_huge_pmd(struct vm_area_struct *vma, unsigned long old_addr,
 		if (force_flush)
 			flush_tlb_range(vma, old_addr, old_addr + PMD_SIZE);
 		if (new_ptl != old_ptl)
-			spin_unlock(new_ptl);;
+			spin_unlock(new_ptl);
 		spin_unlock(old_ptl);
 		return true;
 	}

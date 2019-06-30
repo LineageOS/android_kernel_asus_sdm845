@@ -216,7 +216,8 @@ static char *kdb_read(char *buffer, size_t bufsize)
 	int i;
 	int diag, dtab_count;
 	int key, buf_size, ret;
-	static int last_crlf;
+
+        static int last_crlf;
 
 	diag = kdbgetintenv("DTABCOUNT", &dtab_count);
 	if (diag)
