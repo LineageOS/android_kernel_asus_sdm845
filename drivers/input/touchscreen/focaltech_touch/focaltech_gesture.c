@@ -109,6 +109,7 @@ static struct fts_gesture_st fts_gesture_data;
 static bool dclick_report_flag = false;
 static bool swipe_report_flag = false;
 static int gesture_detect = 0;
+extern bool proximity_check_status(void);//disable gesture when psensor is close
 extern int fts_gesture_mode_en;
 //<ASUS-BSP tyree_liu 20180109> add gesture function  ------
 
@@ -470,6 +471,9 @@ static void fts_gesture_report(struct input_dev *input_dev, int gesture_id)
     /* report event key */
     if (gesture != -1) {
         //<ASUS-BSP tyree_liu 20180109> add gesture function  ++++++
+		ps_status = proximity_check_status();//disable gesture when psensor is close
+		if (ps_status==1)
+			return;
 
 		   switch (gesture){
 		   case KEY_WAKEUP:
