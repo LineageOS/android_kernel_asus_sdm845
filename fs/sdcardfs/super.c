@@ -86,10 +86,7 @@ static int sdcardfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 		}
 
 		min_blocks = ((sbi->options.reserved_mb * 1024 * 1024)/buf->f_bsize);
-		if(buf->f_blocks <= min_blocks){
-			pr_err("can't block size %d.\n", sbi->options.reserved_mb);
-			return -EINVAL;
-		}
+		buf->f_blocks -= min_blocks;
 
 		if (buf->f_bavail > min_blocks)
 			buf->f_bavail -= min_blocks;
@@ -97,10 +94,7 @@ static int sdcardfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 			buf->f_bavail = 0;
 
 		/* Make reserved blocks invisiable to media storage */
-		if(buf->f_bfree < 5*min_blocks){//hack 500M
-			buf->f_blocks -= min_blocks;
-			buf->f_bfree = buf->f_bavail;
-		}
+		buf->f_bfree = buf->f_bavail;
 	}
 
 	/* set return buf to our f/s to avoid confusing user-level utils */
