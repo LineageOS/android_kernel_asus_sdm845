@@ -1990,8 +1990,14 @@ static int backup_bat_health(void)
 
 	bat_health = g_bat_health_data.bat_health;
 
+	g_health_upgrade_index = g_bat_health_data_backup[0].health;
+
 	if(g_health_upgrade_index == BAT_HEALTH_NUMBER_MAX-1){
-		g_health_upgrade_index = 1;
+		g_health_upgrade_index = BAT_HEALTH_NUMBER_MAX-1;
+		for(i=1;i<BAT_HEALTH_NUMBER_MAX;i++){
+			strcpy(g_bat_health_data_backup[i-1].date, g_bat_health_data_backup[i].date);
+			g_bat_health_data_backup[i-1].health = g_bat_health_data_backup[i].health;
+		}
 	}else{
 		g_health_upgrade_index++;
 	}
@@ -2023,6 +2029,7 @@ static int backup_bat_health(void)
 	health_t = bat_health_accumulate*10/count;
 	g_bat_health_avg = (int)(health_t + 5)/10;
 	g_bat_health_data_backup[g_health_upgrade_index].health = g_bat_health_avg;
+
 
 	rc = file_op(CYCLE_COUNT_FILE_NAME, BAT_HEALTH_DATA_OFFSET1,
 		(char *)&g_bat_health_data_backup, sizeof(struct BAT_HEALTH_DATA_BACKUP)*BAT_HEALTH_NUMBER_MAX, FILE_OP_WRITE);
