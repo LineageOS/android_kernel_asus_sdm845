@@ -231,15 +231,7 @@ static ssize_t fts_gesture_buf_show(struct device *dev, struct device_attribute 
     struct input_dev *input_dev = fts_data->input_dev;
 
     mutex_lock(&input_dev->mutex);
-    count = snprintf(buf, PAGE_SIZE, "Gesture ID: 0x%x\n", fts_gesture_data.header[0]);
-    count += snprintf(buf + count, PAGE_SIZE, "Gesture PointNum: %d\n", fts_gesture_data.header[1]);
-    count += snprintf(buf + count, PAGE_SIZE, "Gesture Point Buf:\n");
-    for (i = 0; i < fts_gesture_data.header[1]; i++) {
-        count += snprintf(buf + count, PAGE_SIZE, "%3d(%4d,%4d) ", i, fts_gesture_data.coordinate_x[i], fts_gesture_data.coordinate_y[i]);
-        if ((i + 1) % 4 == 0)
-            count += snprintf(buf + count, PAGE_SIZE, "\n");
-    }
-    count += snprintf(buf + count, PAGE_SIZE, "\n");
+    count = snprintf(buf, PAGE_SIZE, "%x\n", fts_gesture_data.header[0]);
     mutex_unlock(&input_dev->mutex);
 
     return count;
