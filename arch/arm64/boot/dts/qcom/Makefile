@@ -47,8 +47,26 @@ ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 		sda845-v2.1-4k-panel-qrd-overlay.dtbo \
 		sda845-v2.1-cdp-sdxpoorwills-overlay.dtbo \
 		sda845-v2.1-mtp-sdxpoorwills-overlay.dtbo \
-		sda845-v2-mtp-sdxpoorwills-overlay.dtbo
+		sda845-v2-mtp-sdxpoorwills-overlay.dtbo \
+		ZS600KL-overlay.dtbo \
+		ZS620KL-overlay.dtbo \
+		ZS620KL-evb-overlay.dtbo \
+		ZS620KL-SR1-overlay.dtbo \
+		ZS620KL-SR2-overlay.dtbo \
+		ZS620KL-ER-overlay.dtbo \
+		ZS620KL-ER2-overlay.dtbo \
+		ZS620KL-ER3-overlay.dtbo \
+		ZS620KL-PR-overlay.dtbo
 
+ZS600KL-overlay.dtbo-base := sdm845-v2.dtb
+ZS620KL-overlay.dtbo-base := sdm845-v2.dtb
+ZS620KL-evb-overlay.dtbo-base := sdm845-v2.dtb
+ZS620KL-SR1-overlay.dtbo-base := sdm845-v2.dtb
+ZS620KL-SR2-overlay.dtbo-base := sdm845-v2.dtb
+ZS620KL-ER-overlay.dtbo-base := sdm845-v2.dtb
+ZS620KL-ER2-overlay.dtbo-base := sdm845-v2.dtb
+ZS620KL-ER3-overlay.dtbo-base := sdm845-v2.dtb
+ZS620KL-PR-overlay.dtbo-base := sdm845-v2.dtb
 sdm845-cdp-overlay.dtbo-base := sdm845.dtb
 sdm845-mtp-overlay.dtbo-base := sdm845.dtb
 sdm845-qrd-overlay.dtbo-base := sdm845.dtb

@@ -1,0 +1,103 @@
+&thermal_zones {
+	cpu0-silver-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;	
+	};
+
+	cpu1-silver-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	cpu2-silver-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	cpu3-silver-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	kryo-l3-0-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	kryo-l3-1-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	cpu0-gold-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	cpu1-gold-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	cpu2-gold-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	cpu3-gold-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	gpu0-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	gpu1-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	aoss1-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	mdm-dsp-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	ddr-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	wlan-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	compute-hvx-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	camera-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	mmss-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+
+	mdm-core-lowf {
+		/delete-node/ trips;
+		/delete-node/ cooling-maps;
+	};
+};
+
+

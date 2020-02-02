@@ -150,6 +150,81 @@ static inline void warp_clock(void)
 	}
 }
 
+/* ASUS_BSP +++ jeff_gu Add Event log when set time */
+#include <linux/rtc.h>
+
+struct asus_time {
+	int tm_sec;
+	int tm_min;
+	int tm_hour;
+	int tm_mday;
+	int tm_mon;
+	int tm_year;
+	int tm_wday;
+	int tm_yday;
+	int tm_isdst;
+};
+
+#define ASUS_LEAPS_THRU_END_OF(y) ((y)/4 - (y)/100 + (y)/400)
+
+static const unsigned char asus_days_in_month[] = {
+	31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+};
+
+/*
+ * The number of days in the month.
+ */
+static int asus_month_days(unsigned int month, unsigned int year)
+{
+	return asus_days_in_month[month] + (is_leap_year(year) && month == 1);
+}
+
+/*
+ * Convert seconds since 01-01-1970 00:00:00 to Gregorian date.
+ */
+static void asus_time_to_tm(unsigned long time, struct asus_time *tm)
+{
+	unsigned int month, year;
+	int days;
+
+	days = time / 86400;
+	time -= (unsigned int) days * 86400;
+
+	/* day of the week, 1970-01-01 was a Thursday */
+	tm->tm_wday = (days + 4) % 7;
+
+	year = 1970 + days / 365;
+	days -= (year - 1970) * 365
+		+ ASUS_LEAPS_THRU_END_OF(year - 1)
+		- ASUS_LEAPS_THRU_END_OF(1970 - 1);
+	if (days < 0) {
+		year -= 1;
+		days += 365 + is_leap_year(year);
+	}
+	tm->tm_year = year - 1900;
+	tm->tm_yday = days + 1;
+
+	for (month = 0; month < 11; month++) {
+		int newdays;
+
+		newdays = days - asus_month_days(month, year);
+		if (newdays < 0)
+			break;
+		days = newdays;
+	}
+	tm->tm_mon = month;
+	tm->tm_mday = days + 1;
+
+	tm->tm_hour = time / 3600;
+	time -= tm->tm_hour * 3600;
+	tm->tm_min = time / 60;
+	tm->tm_sec = time - tm->tm_min * 60;
+
+	tm->tm_isdst = 0;
+}
+
+/* ASUS_BSP --- jeff_gu Add Event log when set time  */
+
 /*
  * In case for some reason the CMOS clock has not already been running
  * in UTC, but in some local time: The first time we set the timezone,
@@ -163,8 +238,20 @@ static inline void warp_clock(void)
 
 int do_sys_settimeofday64(const struct timespec64 *tv, const struct timezone *tz)
 {
+	/* ASUS_BSP +++ jeff_gu Add Event log when set time */
+	struct timespec tmp_time;
+	struct asus_time ori_tm, new_tm;
+	static struct asus_time last_tm;
+	/* ASUS_BSP --- jeff_gu Add Event log when set time  */
+
 	static int firsttime = 1;
 	int error = 0;
+
+	/* ASUS_BSP +++ jeff_gu Add Event log when set time */
+	getnstimeofday(&tmp_time);
+	tmp_time.tv_sec -= sys_tz.tz_minuteswest * 60;
+	asus_time_to_tm(tmp_time.tv_sec, &ori_tm);
+	/* ASUS_BSP --- jeff_gu Add Event log when set time */
 
 	if (tv && !timespec64_valid(tv))
 		return -EINVAL;
@@ -186,6 +273,44 @@ int do_sys_settimeofday64(const struct timespec64 *tv, const struct timezone *tz
 				warp_clock();
 		}
 	}
+	/* ASUS_BSP +++ jeff_gu Add Event log when set time zone */
+	if (tv != NULL){
+		set_normalized_timespec(&tmp_time,tv->tv_sec,tv->tv_nsec);
+	} else {
+		getnstimeofday(&tmp_time);
+	}
+	tmp_time.tv_sec -= sys_tz.tz_minuteswest * 60;
+	asus_time_to_tm(tmp_time.tv_sec, &new_tm);
+	printk("[UTS] RTC update: Current Datetime: %04d-%02d-%02d %02d:%02d:%02d,Update Datetime: %04d-%02d-%02d %02d:%02d:%02d\r\n",
+		ori_tm.tm_year + 1900,
+		ori_tm.tm_mon + 1,
+		ori_tm.tm_mday,
+		ori_tm.tm_hour,
+		ori_tm.tm_min,
+		ori_tm.tm_sec,
+		new_tm.tm_year + 1900,
+		new_tm.tm_mon + 1,
+		new_tm.tm_mday,
+		new_tm.tm_hour,
+		new_tm.tm_min,
+		new_tm.tm_sec);
+	if(memcmp(&last_tm, &new_tm, sizeof(new_tm))){
+		ASUSEvtlog("[UTS] RTC update: Current Datetime: %04d-%02d-%02d %02d:%02d:%02d,Update Datetime: %04d-%02d-%02d %02d:%02d:%02d\r\n",
+			ori_tm.tm_year + 1900,
+			ori_tm.tm_mon + 1,
+			ori_tm.tm_mday,
+			ori_tm.tm_hour,
+			ori_tm.tm_min,
+			ori_tm.tm_sec,
+			new_tm.tm_year + 1900,
+			new_tm.tm_mon + 1,
+			new_tm.tm_mday,
+			new_tm.tm_hour,
+			new_tm.tm_min,
+			new_tm.tm_sec);
+		memcpy(&last_tm, &new_tm, sizeof(new_tm));
+	}
+	/* ASUS_BSP --- jeff_gu Add Event log when set time zone */
 	if (tv)
 		return do_settimeofday64(tv);
 	return 0;

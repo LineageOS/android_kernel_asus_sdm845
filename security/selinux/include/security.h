@@ -197,6 +197,11 @@ int security_get_classes(char ***classes, int *nclasses);
 int security_get_permissions(char *class, char ***perms, int *nperms);
 int security_get_reject_unknown(void);
 int security_get_allow_unknown(void);
+int security_set_aps(int nValue);
+int security_get_aps(void);
+
+int security_set_asus(int nValue);
+int security_get_asus(void);
 
 #define SECURITY_FS_USE_XATTR		1 /* use xattr */
 #define SECURITY_FS_USE_TRANS		2 /* use transition SIDs, e.g. devpts/tmpfs */

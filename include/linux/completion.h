@@ -22,6 +22,7 @@
  * reinit_completion(), and macros DECLARE_COMPLETION(),
  * DECLARE_COMPLETION_ONSTACK().
  */
+#if 0
 struct completion {
 	unsigned int done;
 	wait_queue_head_t wait;
@@ -29,6 +30,15 @@ struct completion {
 
 #define COMPLETION_INITIALIZER(work) \
 	{ 0, __WAIT_QUEUE_HEAD_INITIALIZER((work).wait) }
+#else
+struct completion {
+	unsigned int done;
+	wait_queue_head_t wait;
+	char name[32];
+};
+#define COMPLETION_INITIALIZER(work) \
+	{ 0, __WAIT_QUEUE_HEAD_INITIALIZER((work).wait), #work }
+#endif
 
 #define COMPLETION_INITIALIZER_ONSTACK(work) \
 	({ init_completion(&work); work; })

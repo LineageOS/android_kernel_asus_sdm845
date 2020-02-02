@@ -27,6 +27,8 @@
 
 #define MULTIPLE_CONN_DETECTED(x) (x > 1)
 
+extern int display_early_init;
+
 struct msm_commit {
 	struct drm_device *dev;
 	struct drm_atomic_state *state;
@@ -487,9 +489,11 @@ static void msm_atomic_helper_commit_modeset_enables(struct drm_device *dev,
 		 * Each encoder has at most one connector (since we always steal
 		 * it away), so we won't call enable hooks twice.
 		 */
-		drm_bridge_pre_enable(encoder->bridge);
+		if (display_early_init == 0) {
+			printk ("[Display] init from regular resume() \n");
+			drm_bridge_pre_enable(encoder->bridge);
+		}
 		++bridge_enable_count;
-
 		if (funcs->enable)
 			funcs->enable(encoder);
 		else
@@ -526,7 +530,10 @@ static void msm_atomic_helper_commit_modeset_enables(struct drm_device *dev,
 		DRM_DEBUG_ATOMIC("bridge enable enabling [ENCODER:%d:%s]\n",
 				 encoder->base.id, encoder->name);
 
-		drm_bridge_enable(encoder->bridge);
+		if (display_early_init == 0)
+			drm_bridge_enable(encoder->bridge);
+
+		printk ("[Display] MSM_DRM_EVENT_BLANK \n");
 		if (connector->state->crtc->state->active_changed) {
 			DRM_DEBUG_ATOMIC("Notify unblank\n");
 			msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK,

@@ -2323,6 +2323,7 @@ static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 	}
 
 	if ((xhci->hci_version >= 0x100) && (major_revision != 0x03)) {
+		#if 0
 		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 				"xHCI 1.0: support USB2 software lpm");
 		xhci->sw_lpm_support = 1;
@@ -2331,6 +2332,9 @@ static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 					"xHCI 1.0: support USB2 hardware lpm");
 			xhci->hw_lpm_support = 1;
 		}
+		#else
+		xhci_warn(xhci, "disalbe USB2 hardware lpm\n");
+		#endif
 	}
 
 	port_offset--;

@@ -269,6 +269,7 @@ struct hap_lra_ares_param {
  *  @ play_time_ms - play time set by the user in ms
  *  @ max_play_time_ms - max play time in ms
  *  @ vmax_mv - max voltage in mv
+ *  @ vmax_level - define buy asus.
  *  @ ilim_ma - limiting current in ma
  *  @ sc_deb_cycles - short circuit debounce cycles
  *  @ wave_play_rate_us - play rate for waveform
@@ -326,6 +327,7 @@ struct hap_chip {
 	u32				play_time_ms;
 	u32				max_play_time_ms;
 	u32				vmax_mv;
+	int				vmax_level;
 	u8				ilim_ma;
 	u32				sc_deb_cycles;
 	u32				wave_play_rate_us;
@@ -1207,7 +1209,7 @@ static int qpnp_haptics_auto_mode_config(struct hap_chip *chip, int time_ms)
 	enum hap_mode old_play_mode;
 	u8 old_ares_mode;
 	u32 brake_pat[HAP_BRAKE_PAT_LEN] = {0};
-	u32 wave_samp[HAP_WAVE_SAMP_LEN] = {0};
+	//u32 wave_samp[HAP_WAVE_SAMP_LEN] = {0};
 	int rc, vmax_mv;
 
 	if (!chip->lra_auto_mode)
@@ -1220,7 +1222,8 @@ static int qpnp_haptics_auto_mode_config(struct hap_chip *chip, int time_ms)
 	old_ares_mode = chip->ares_cfg.auto_res_mode;
 	old_play_mode = chip->play_mode;
 	pr_debug("auto_mode, time_ms: %d\n", time_ms);
-	if (time_ms <= 20) {
+	// disable short pattern time_ms <= 20
+	/*if (time_ms <= 20) {
 		wave_samp[0] = HAP_WF_SAMP_MAX;
 		wave_samp[1] = HAP_WF_SAMP_MAX;
 		chip->wf_samp_len = 2;
@@ -1229,7 +1232,7 @@ static int qpnp_haptics_auto_mode_config(struct hap_chip *chip, int time_ms)
 			chip->wf_samp_len = 3;
 		}
 
-		/* short pattern */
+		// short pattern
 		rc = qpnp_haptics_parse_buffer_dt(chip);
 		if (!rc) {
 			rc = qpnp_haptics_wave_rep_config(chip,
@@ -1265,7 +1268,7 @@ static int qpnp_haptics_auto_mode_config(struct hap_chip *chip, int time_ms)
 		if (rc < 0)
 			return rc;
 
-		/* enable play_irq for buffer mode */
+		// enable play_irq for buffer mode
 		if (chip->play_irq >= 0 && !chip->play_irq_en) {
 			enable_irq(chip->play_irq);
 			chip->play_irq_en = true;
@@ -1274,9 +1277,9 @@ static int qpnp_haptics_auto_mode_config(struct hap_chip *chip, int time_ms)
 		brake_pat[0] = BRAKE_VMAX;
 		chip->play_mode = HAP_BUFFER;
 		chip->wave_shape = HAP_WAVE_SQUARE;
-	} else {
+	} else {*/
 		/* long pattern */
-		ares_cfg.lra_high_z = HAP_LRA_HIGH_Z_OPT1;
+		ares_cfg.lra_high_z = HAP_LRA_HIGH_Z_OPT2;
 		if (chip->revid->pmic_subtype == PM660_SUBTYPE) {
 			ares_cfg.auto_res_mode = HAP_PM660_AUTO_RES_ZXD;
 			ares_cfg.lra_res_cal_period =
@@ -1285,7 +1288,7 @@ static int qpnp_haptics_auto_mode_config(struct hap_chip *chip, int time_ms)
 			ares_cfg.calibrate_at_eop = 1;
 		} else {
 			ares_cfg.auto_res_mode = HAP_AUTO_RES_QWD;
-			ares_cfg.lra_res_cal_period = HAP_RES_CAL_PERIOD_MAX;
+			ares_cfg.lra_res_cal_period = HAP_RES_CAL_PERIOD_MIN;
 			ares_cfg.lra_qwd_drive_duration = -EINVAL;
 			ares_cfg.calibrate_at_eop = -EINVAL;
 		}
@@ -1295,6 +1298,11 @@ static int qpnp_haptics_auto_mode_config(struct hap_chip *chip, int time_ms)
 		if (rc < 0)
 			return rc;
 
+		brake_pat[0] = 0x3;
+		brake_pat[1] = 0x3;
+		brake_pat[2] = 0x3;
+		brake_pat[3] = 0x3;
+
 		/* enable play_irq for direct mode */
 		if (chip->play_irq >= 0 && chip->play_irq_en) {
 			disable_irq(chip->play_irq);
@@ -1303,7 +1311,7 @@ static int qpnp_haptics_auto_mode_config(struct hap_chip *chip, int time_ms)
 
 		chip->play_mode = HAP_DIRECT;
 		chip->wave_shape = HAP_WAVE_SINE;
-	}
+	//}
 
 	chip->ares_cfg.auto_res_mode = ares_cfg.auto_res_mode;
 	rc = qpnp_haptics_lra_auto_res_config(chip, &ares_cfg);
@@ -1746,22 +1754,41 @@ static ssize_t qpnp_haptics_show_vmax(struct device *dev,
 	struct led_classdev *cdev = dev_get_drvdata(dev);
 	struct hap_chip *chip = container_of(cdev, struct hap_chip, cdev);
 
+#ifndef ASUS_FACTORY_BUILD
+	return snprintf(buf, PAGE_SIZE, "level = %d, vmax = %d\n", chip->vmax_level, chip->vmax_mv);
+#else
 	return snprintf(buf, PAGE_SIZE, "%d\n", chip->vmax_mv);
+#endif
 }
 
+#ifndef ASUS_FACTORY_BUILD
+static int asus_vmax_mv[7] = {0, 348, 696, 1160, 1508, 1856, 2520}; //level_general_0~level_general_5,level_alarm
+#endif
 static ssize_t qpnp_haptics_store_vmax(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct led_classdev *cdev = dev_get_drvdata(dev);
 	struct hap_chip *chip = container_of(cdev, struct hap_chip, cdev);
-	int data, rc, old_vmax_mv;
+	int index, rc, old_vmax_mv;
 
-	rc = kstrtoint(buf, 10, &data);
+	rc = kstrtoint(buf, 10, &index);
 	if (rc < 0)
 		return rc;
 
 	old_vmax_mv = chip->vmax_mv;
-	chip->vmax_mv = data;
+
+#ifndef ASUS_FACTORY_BUILD
+	if (index < 0) index = 0; //level_general_0
+	if (index > 6) index = 5; //level_general_5
+
+	chip->vmax_mv = asus_vmax_mv[index];
+	chip->vmax_level = index;
+	pr_debug("haptic : vmax_level = %d\n", chip->vmax_level);
+#else
+	chip->vmax_mv = index;
+	chip->vmax_level = 0;
+#endif
+
 	rc = qpnp_haptics_vmax_config(chip, chip->vmax_mv, false);
 	if (rc < 0) {
 		chip->vmax_mv = old_vmax_mv;
@@ -2199,6 +2226,8 @@ static int qpnp_haptics_parse_dt(struct hap_chip *chip)
 		pr_err("Unable to read Vmax rc=%d\n", rc);
 		return rc;
 	}
+
+	chip->vmax_level = -1;
 
 	chip->ilim_ma = HAP_ILIM_400_MA;
 	rc = of_property_read_u32(node, "qcom,ilim-ma", &temp);

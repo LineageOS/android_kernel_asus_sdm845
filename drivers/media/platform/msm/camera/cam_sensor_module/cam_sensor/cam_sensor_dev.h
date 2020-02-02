@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,7 +32,6 @@
 #include <cam_subdev.h>
 #include <cam_sensor_io.h>
 #include "cam_debug_util.h"
-#include "cam_context.h"
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
@@ -57,6 +56,8 @@ enum cam_sensor_state_t {
 	CAM_SENSOR_START,
 };
 
+#ifndef _CAM_INTF_PARAM_BUILD
+#define _CAM_INTF_PARAM_BUILD
 /**
  * struct intf_params
  * @device_hdl: Device Handle
@@ -72,10 +73,9 @@ struct intf_params {
 	struct cam_req_mgr_kmd_ops ops;
 	struct cam_req_mgr_crm_cb *crm_cb;
 };
-
+#endif
 /**
  * struct cam_sensor_ctrl_t: Camera control structure
- * @device_name: Sensor device name
  * @pdev: Platform device
  * @cam_sensor_mutex: Sensor mutex
  * @sensordata: Sensor board Information
@@ -91,13 +91,13 @@ struct intf_params {
  * @i2c_data: Sensor I2C register settings
  * @sensor_info: Sensor query cap structure
  * @bridge_intf: Bridge interface structure
+ * @device_name: Sensor device structure
  * @streamon_count: Count to hold the number of times stream on called
  * @streamoff_count: Count to hold the number of times stream off called
  * @bob_reg_index: Hold to BoB regulator index
  * @bob_pwm_switch: Boolean flag to switch into PWM mode for BoB regulator
  */
 struct cam_sensor_ctrl_t {
-	char device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
 	struct platform_device *pdev;
 	struct cam_hw_soc_info soc_info;
 	struct mutex cam_sensor_mutex;
@@ -105,6 +105,7 @@ struct cam_sensor_ctrl_t {
 	enum cci_i2c_master_t cci_i2c_master;
 	struct camera_io_master io_master_info;
 	enum cam_sensor_state_t sensor_state;
+	uint8_t power_state;//ASUS_BSP Zhengwei "porting sensor ATD"
 	uint8_t is_probe_succeed;
 	uint32_t id;
 	struct device_node *of_node;
@@ -114,6 +115,7 @@ struct cam_sensor_ctrl_t {
 	struct i2c_data_settings i2c_data;
 	struct  cam_sensor_query_cap sensor_info;
 	struct intf_params bridge_intf;
+	char device_name[20];
 	uint32_t streamon_count;
 	uint32_t streamoff_count;
 	int bob_reg_index;

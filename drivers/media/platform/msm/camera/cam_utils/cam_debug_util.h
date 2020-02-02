@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -36,7 +36,6 @@
 #define CAM_OIS        (1 << 20)
 #define CAM_RES        (1 << 21)
 #define CAM_MEM        (1 << 22)
-#define CAM_IR_LED     (1 << 23)
 
 /* CAM_IRQ_CTRL: For events in irq controller */
 #define CAM_IRQ_CTRL   (1 << 23)
@@ -107,22 +106,9 @@ const char *cam_get_module_name(unsigned int module_id);
 #define CAM_INFO(__module, fmt, args...)                           \
 	pr_info("CAM_INFO: %s: %s: %d " fmt "\n",                     \
 		cam_get_module_name(__module), __func__,  __LINE__, ##args)
-
-/*
- * CAM_INFO_RATE_LIMIT
- * @brief    :  This Macro will print info logs with ratelimit
- *
- * @__module :  Respective module id which is been calling this Macro
- * @fmt      :  Formatted string which needs to be print in log
- * @args     :  Arguments which needs to be print in log
- */
-#define CAM_INFO_RATE_LIMIT(__module, fmt, args...)                 \
-	pr_err_ratelimited("CAM_INFO: %s: %s: %d " fmt "\n",            \
-		cam_get_module_name(__module), __func__,  __LINE__, ##args)
-
 /*
  * CAM_DBG
- * @brief    :  This Macro will print debug logs when enabled using GROUP
+ * @brief :     This Macro will print debug logs when enabled using GROUP
  *
  * @__module :  Respective module id which is been calling this Macro
  * @fmt      :  Formatted string which needs to be print in log
@@ -133,7 +119,7 @@ const char *cam_get_module_name(unsigned int module_id);
 
 /*
  * CAM_ERR_RATE_LIMIT
- * @brief    :  This Macro will print error print logs with ratelimit
+ * @brief :     This Macro will prevent error print logs with ratelimit
  */
 #define CAM_ERR_RATE_LIMIT(__module, fmt, args...)                 \
 	pr_err_ratelimited("CAM_ERR: %s: %s: %d " fmt "\n",            \

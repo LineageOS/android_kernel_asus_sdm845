@@ -226,6 +226,57 @@ rtc_rw_fail:
 	return rc;
 }
 
+struct qpnp_rtc *asus_rtc_dd;
+int asus_qpnp_rtc_read_time(unsigned long * secs)
+{
+	int rc = -1;
+	u8 value[4], reg;
+//	unsigned long secs;
+
+	if(!asus_rtc_dd){
+		pr_err("asus rtc add is NULL!\n");
+		return rc;
+	}
+
+	if (secs == NULL) {
+		pr_err("secs pointer is NULL!\n");
+		return rc;
+	}
+
+	rc = qpnp_read_wrapper(asus_rtc_dd, value,
+				asus_rtc_dd->rtc_base + REG_OFFSET_RTC_READ,
+				NUM_8_BIT_RTC_REGS);
+	if (rc) {
+		pr_err("Read from RTC reg failed\n");
+		return rc;
+	}
+
+	/*
+	 * Read the LSB again and check if there has been a carry over
+	 * If there is, redo the read operation
+	 */
+	rc = qpnp_read_wrapper(asus_rtc_dd, &reg,
+				asus_rtc_dd->rtc_base + REG_OFFSET_RTC_READ, 1);
+	if (rc) {
+		pr_err("Read from RTC reg failed\n");
+		return rc;
+	}
+
+	if (reg < value[0]) {
+		rc = qpnp_read_wrapper(asus_rtc_dd, value,
+				asus_rtc_dd->rtc_base + REG_OFFSET_RTC_READ,
+				NUM_8_BIT_RTC_REGS);
+		if (rc) {
+			pr_err("Read from RTC reg failed\n");
+			return rc;
+		}
+	}
+
+	*secs = TO_SECS(value);
+
+	return 0;
+}
+
 static int
 qpnp_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
@@ -478,6 +529,8 @@ rtc_alarm_handled:
 	return IRQ_HANDLED;
 }
 
+bool rtc_probe_done = false;
+EXPORT_SYMBOL(rtc_probe_done);
 static int qpnp_rtc_probe(struct platform_device *pdev)
 {
 	const struct rtc_class_ops *rtc_ops = &qpnp_rtc_ro_ops;
@@ -617,9 +670,11 @@ static int qpnp_rtc_probe(struct platform_device *pdev)
 		goto fail_req_irq;
 	}
 
+    asus_rtc_dd = rtc_dd;
+
 	device_init_wakeup(&pdev->dev, 1);
 	enable_irq_wake(rtc_dd->rtc_alarm_irq);
-
+    rtc_probe_done = true;
 	dev_dbg(&pdev->dev, "Probe success !!\n");
 
 	return 0;
@@ -664,9 +719,10 @@ static void qpnp_rtc_shutdown(struct platform_device *pdev)
 		return;
 	}
 	rtc_alarm_powerup = rtc_dd->rtc_alarm_powerup;
-	if (!rtc_alarm_powerup && !poweron_alarm) {
+	//~ if (!rtc_alarm_powerup && !poweron_alarm) {
 		spin_lock_irqsave(&rtc_dd->alarm_ctrl_lock, irq_flags);
 		dev_dbg(&pdev->dev, "Disabling alarm interrupts\n");
+        printk("%s:Disabling alarm interrupts\n", __func__);
 
 		/* Disable RTC alarms */
 		reg = rtc_dd->alarm_ctrl_reg1;
@@ -687,7 +743,7 @@ static void qpnp_rtc_shutdown(struct platform_device *pdev)
 
 fail_alarm_disable:
 		spin_unlock_irqrestore(&rtc_dd->alarm_ctrl_lock, irq_flags);
-	}
+	//~ }
 }
 
 static const struct of_device_id spmi_match_table[] = {

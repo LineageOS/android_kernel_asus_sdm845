@@ -1,0 +1,71 @@
+
+qcom,3199282_asus_z5620kl_3150mah_averaged_masterslave_nov28th2017_425 {
+	qcom, = <24>;
+	/* #3199282_Asus_Z5620KL_3150mAh_averaged_MasterSlave_Nov28th2017*/
+	qcom,max-voltage-uv = <4250000>;
+	qcom,fg-cc-cv-threshold-mv = <4330>;
+	qcom,nom-batt-capacity-mah = <3150>;
+	qcom,batt-id-kohm = <51>;
+	qcom,battery-beta = <3380>;
+	qcom,battery-type = "draco_51K_425";
+	qcom,checksum = <0x6E71>;
+	qcom,gui-version = "PMI8998GUI - 2.0.0.58";
+	qcom,fg-profile-data = [
+		 52 1F E7 05
+		 2B 0A 2B FD
+		 64 1D 0A EC
+		 0B 12 6C 14
+		 BB 18 79 22
+		 89 3C 42 4B
+		 52 00 00 00
+		 17 00 00 00
+		 00 00 0F C5
+		 95 CD D5 CA
+		 20 00 08 00
+		 82 DA CB E5
+		 99 05 1B FB
+		 29 FB 4E 1A
+		 4F ED 4E 32
+		 24 06 09 20
+		 27 00 14 00
+		 C3 1F A1 05
+		 51 0A F3 FC
+		 32 1D 2F 01
+		 BD EB 4E 04
+		 3F 19 C2 22
+		 A2 45 C1 52
+		 59 00 00 00
+		 0D 00 00 00
+		 00 00 19 CC
+		 A4 C2 89 C2
+		 19 00 00 00
+		 2B E3 CB E5
+		 87 FC 0B 01
+		 E5 06 23 03
+		 FF 06 91 1B
+		 B3 33 CC FF
+		 07 10 00 00
+		 7A 0C B6 45
+		 19 00 40 00
+		 BA 01 0A FA
+		 FF 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+	];
+};

@@ -16,6 +16,9 @@
 #include "cam_eeprom_core.h"
 #include "cam_debug_util.h"
 
+extern void set_rear_eeprom_ctrl(struct cam_eeprom_ctrl_t * ectrl);//ASUS_BSP Zhengwei "read eeprom info for ois fw update"
+
+
 static long cam_eeprom_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)
 {
@@ -261,10 +264,9 @@ static int cam_eeprom_i2c_driver_remove(struct i2c_client *client)
 	for (i = 0; i < soc_info->num_clk; i++)
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
 
-	mutex_destroy(&(e_ctrl->eeprom_mutex));
-	kfree(soc_private);
-	kfree(e_ctrl->io_master_info.cci_client);
-	v4l2_set_subdevdata(&e_ctrl->v4l2_dev_str.sd, NULL);
+	if (soc_private)
+		kfree(soc_private);
+
 	kfree(e_ctrl);
 
 	return 0;
@@ -395,8 +397,6 @@ static int cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 		kfree(soc_private->power_info.gpio_num_info);
 		kfree(soc_private);
 	}
-	mutex_destroy(&(e_ctrl->eeprom_mutex));
-	v4l2_set_subdevdata(&e_ctrl->v4l2_dev_str.sd, NULL);
 	kfree(e_ctrl);
 
 	return 0;
@@ -408,6 +408,8 @@ static int32_t cam_eeprom_platform_driver_probe(
 	int32_t                         rc = 0;
 	struct cam_eeprom_ctrl_t       *e_ctrl = NULL;
 	struct cam_eeprom_soc_private  *soc_private = NULL;
+
+	CAM_INFO(CAM_EEPROM,"Probe Start");
 
 	e_ctrl = kzalloc(sizeof(struct cam_eeprom_ctrl_t), GFP_KERNEL);
 	if (!e_ctrl)
@@ -465,6 +467,13 @@ static int32_t cam_eeprom_platform_driver_probe(
 
 	e_ctrl->cam_eeprom_state = CAM_EEPROM_INIT;
 
+	//ASUS_BSP Zhengwei +++ "read eeprom info for ois fw update"
+	if(e_ctrl->soc_info.index == 0)
+		set_rear_eeprom_ctrl(e_ctrl);
+	//ASUS_BSP Zhengwei --- "read eeprom info for ois fw update"
+
+	CAM_INFO(CAM_EEPROM,"Probe Done");
+
 	return rc;
 free_soc:
 	kfree(soc_private);
@@ -472,6 +481,7 @@ free_cci_client:
 	kfree(e_ctrl->io_master_info.cci_client);
 free_e_ctrl:
 	kfree(e_ctrl);
+	CAM_ERR(CAM_EEPROM,"Probe Failed!");
 	return rc;
 }
 
@@ -492,11 +502,8 @@ static int cam_eeprom_platform_driver_remove(struct platform_device *pdev)
 	for (i = 0; i < soc_info->num_clk; i++)
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
 
-	mutex_destroy(&(e_ctrl->eeprom_mutex));
 	kfree(soc_info->soc_private);
 	kfree(e_ctrl->io_master_info.cci_client);
-	platform_set_drvdata(pdev, NULL);
-	v4l2_set_subdevdata(&e_ctrl->v4l2_dev_str.sd, NULL);
 	kfree(e_ctrl);
 	return 0;
 }

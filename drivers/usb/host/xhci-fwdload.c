@@ -85,7 +85,7 @@ static struct dma_iommu_mapping *upd720x_smmu_init(struct device *dev)
 
 static int upd720x_download_enable(struct pci_dev *pDev)
 {
-	unsigned int read_data;
+	unsigned int read_data = 0;
 	int result;
 
 	result = pci_read_config_dword(pDev, UPD_PCI_F4, &read_data);
@@ -97,7 +97,7 @@ static int upd720x_download_enable(struct pci_dev *pDev)
 
 static int upd720x_download_lock(struct pci_dev *pDev)
 {
-	unsigned int read_data;
+	unsigned int read_data = 0;
 	int result;
 
 	result = pci_read_config_dword(pDev, UPD_PCI_F4, &read_data);
@@ -109,7 +109,7 @@ static int upd720x_download_lock(struct pci_dev *pDev)
 
 static int upd720x_set_data0(struct pci_dev *pDev)
 {
-	unsigned int read_data;
+	unsigned int read_data = 0;
 	int result;
 
 	result = pci_read_config_dword(pDev, UPD_PCI_F4, &read_data);
@@ -122,7 +122,7 @@ static int upd720x_set_data0(struct pci_dev *pDev)
 
 static int upd720x_set_data1(struct pci_dev *pDev)
 {
-	unsigned int read_data;
+	unsigned int read_data = 0;
 	int result;
 
 	result = pci_read_config_dword(pDev, UPD_PCI_F4, &read_data);

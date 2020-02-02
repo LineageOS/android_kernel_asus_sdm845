@@ -24,7 +24,7 @@
 
 #define to_dsi_bridge(x)     container_of((x), struct dsi_bridge, base)
 #define to_dsi_state(x)      container_of((x), struct dsi_connector_state, base)
-
+//struct dsi_bridge *g_asus_bridge = NULL;
 static void convert_to_dsi_mode(const struct drm_display_mode *drm_mode,
 				struct dsi_display_mode *dsi_mode)
 {
@@ -136,10 +136,17 @@ static int dsi_bridge_attach(struct drm_bridge *bridge)
 
 }
 
+bool dsi_on = false;
+
 static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+
+	printk("[Display] dsi_bridge_pre_enable !!!\n");
+
+	if (dsi_on)
+		return;
 
 	if (!bridge) {
 		pr_err("Invalid params\n");
@@ -200,6 +207,9 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
 	struct dsi_display *display;
 
+	if (dsi_on)
+		return;
+
 	if (!bridge) {
 		pr_err("Invalid params\n");
 		return;
@@ -220,6 +230,8 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 
 	if (display && display->drm_conn)
 		sde_connector_helper_bridge_enable(display->drm_conn);
+
+	dsi_on = true;
 }
 
 static void dsi_bridge_disable(struct drm_bridge *bridge)
@@ -227,6 +239,9 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 	int rc = 0;
 	struct dsi_display *display;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+
+	if (!dsi_on)
+		return;
 
 	if (!bridge) {
 		pr_err("Invalid params\n");
@@ -244,10 +259,14 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 	}
 }
 
+extern int display_early_init;
 static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+
+	if (!dsi_on)
+		return;
 
 	if (!bridge) {
 		pr_err("Invalid params\n");
@@ -273,6 +292,9 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 		return;
 	}
 	SDE_ATRACE_END("dsi_bridge_post_disable");
+
+	dsi_on = false;
+	display_early_init = 0;
 }
 
 static void dsi_bridge_mode_set(struct drm_bridge *bridge,
@@ -935,6 +957,49 @@ int dsi_conn_post_kickoff(struct drm_connector *connector)
 	return 0;
 }
 
+struct drm_bridge *bridge4pm;
+extern struct mutex dsi_op_mutex;
+int display_early_init = 0;
+bool display_on_trig_by_early = false;
+
+void dsi_suspend(void)
+{
+	/*
+	 * if display is trigger on by early on
+	 * when suspend called before the actual system has called
+	 * then we should turned off display here
+	 */
+	if (!display_on_trig_by_early)
+		return;
+	else
+		printk("[Display] disable bridge in suspend state.\n");
+
+	display_on_trig_by_early = false;
+	printk("[Display] dsi_suspend++\n");
+	mutex_lock(&dsi_op_mutex);
+	dsi_bridge_disable(bridge4pm);
+	dsi_bridge_post_disable(bridge4pm);
+	display_early_init = 0;
+	mutex_unlock(&dsi_op_mutex);
+	printk("[Display] dsi_suspend--\n");
+}
+EXPORT_SYMBOL(dsi_suspend);
+
+void dsi_resume(void)
+{
+	printk("[Display] dsi_resume++\n");
+	mutex_lock(&dsi_op_mutex);
+	display_early_init = 1;
+	dsi_bridge_pre_enable(bridge4pm);
+	dsi_bridge_enable(bridge4pm);
+
+	/* mark display early on here, reset this flag by system calling */
+	display_on_trig_by_early = true;
+	mutex_unlock(&dsi_op_mutex);
+	printk("[Display] dsi_resume---\n");
+}
+EXPORT_SYMBOL(dsi_resume);
+
 struct dsi_bridge *dsi_drm_bridge_init(struct dsi_display *display,
 				       struct drm_device *dev,
 				       struct drm_encoder *encoder)
@@ -959,6 +1024,7 @@ struct dsi_bridge *dsi_drm_bridge_init(struct dsi_display *display,
 	}
 
 	encoder->bridge = &bridge->base;
+	bridge4pm = &bridge->base;
 	return bridge;
 error_free_bridge:
 	kfree(bridge);

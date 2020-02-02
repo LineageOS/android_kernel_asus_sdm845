@@ -49,7 +49,6 @@ int cam_sync_init_row(struct sync_table_row *table,
 	row->sync_id = idx;
 	row->state = CAM_SYNC_STATE_ACTIVE;
 	row->remaining = 0;
-	atomic_set(&row->ref_cnt, 0);
 	init_completion(&row->signaled);
 	INIT_LIST_HEAD(&row->callback_list);
 	INIT_LIST_HEAD(&row->user_payload_list);
@@ -176,12 +175,6 @@ int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx)
 			idx);
 		return -EINVAL;
 	}
-
-	if (row->state == CAM_SYNC_STATE_ACTIVE)
-		CAM_WARN(CAM_SYNC,
-			"Destroying an active sync object name:%s id:%i",
-			row->name, row->sync_id);
-
 	row->state = CAM_SYNC_STATE_INVALID;
 
 	/* Object's child and parent objects will be added into this list */
@@ -224,11 +217,6 @@ int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx)
 			continue;
 		}
 
-		if (child_row->state == CAM_SYNC_STATE_ACTIVE)
-			CAM_WARN(CAM_SYNC,
-				"Warning: destroying active child sync obj = %d",
-				child_info->sync_id);
-
 		cam_sync_util_cleanup_parents_list(child_row,
 			SYNC_LIST_CLEAN_ONE, idx);
 
@@ -252,11 +240,6 @@ int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx)
 			kfree(parent_info);
 			continue;
 		}
-
-		if (parent_row->state == CAM_SYNC_STATE_ACTIVE)
-			CAM_WARN(CAM_SYNC,
-				"Warning: destroying active parent sync obj = %d",
-				parent_info->sync_id);
 
 		cam_sync_util_cleanup_children_list(parent_row,
 			SYNC_LIST_CLEAN_ONE, idx);

@@ -833,6 +833,7 @@ static struct clk_rcg2 cam_cc_lrme_clk_src = {
 };
 
 static const struct freq_tbl ftbl_cam_cc_mclk0_clk_src[] = {
+	F(6400000,P_BI_TCXO , 1, 1, 3),
 	F(8000000, P_CAM_CC_PLL2_OUT_EVEN, 10, 1, 6),
 	F(19200000, P_BI_TCXO, 1, 0, 0),
 	F(24000000, P_CAM_CC_PLL2_OUT_EVEN, 10, 1, 2),

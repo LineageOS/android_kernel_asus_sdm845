@@ -13,6 +13,11 @@
 #include <linux/printk.h>
 #include <asm/byteorder.h>
 #include <uapi/linux/kernel.h>
+//ASUS_BSP: +++
+#include <linux/asusdebug.h>
+
+extern int g_user_dbg_mode;
+extern int g_user_klog_mode;
 
 #define USHRT_MAX	((u16)(~0U))
 #define SHRT_MAX	((s16)(USHRT_MAX>>1))
@@ -441,6 +446,9 @@ extern int func_ptr_is_kernel_text(void *ptr);
 
 unsigned long int_sqrt(unsigned long);
 
+extern char lcd_unique_id[64];
+extern char lcd_id1[64];
+extern char lcd_stage_id[64];
 extern void bust_spinlocks(int yes);
 extern int oops_in_progress;		/* If set, an oops, panic(), BUG() or die() is in progress */
 extern int panic_timeout;

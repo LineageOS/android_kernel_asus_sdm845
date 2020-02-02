@@ -1583,12 +1583,47 @@ static struct drm_driver msm_driver = {
 	.patchlevel         = MSM_VERSION_PATCHLEVEL,
 };
 
+struct work_struct resume_work;
+struct workqueue_struct *resume_wq;
+struct device *g_dev;
+bool display_early_on = false;
+
+void dsi_suspend(void);
+void dsi_resume(void);
+void dsi_resume_work(struct work_struct *work)
+{
+	struct drm_device *ddev;
+	struct msm_drm_private *priv;
+	struct msm_kms *kms;
+
+	printk("[Display] doing resume from PM wq\n");
+	if (g_dev) {
+		ddev = dev_get_drvdata(g_dev);
+		if (!ddev || !ddev->dev_private) {
+			pr_err("[Display] failed to early on \n");
+			return;
+		}
+
+		priv = ddev->dev_private;
+		kms = priv->kms;
+
+		if (kms && kms->funcs && kms->funcs->pm_resume) {
+			kms->funcs->pm_resume(g_dev);
+		}
+	}
+
+	dsi_resume();
+}
+
 #ifdef CONFIG_PM_SLEEP
 static int msm_pm_suspend(struct device *dev)
 {
 	struct drm_device *ddev;
 	struct msm_drm_private *priv;
 	struct msm_kms *kms;
+
+	printk("[Display] pm suspend\n");
+	dsi_suspend();
 
 	if (!dev)
 		return -EINVAL;
@@ -1614,19 +1649,34 @@ static int msm_pm_resume(struct device *dev)
 	struct drm_device *ddev;
 	struct msm_drm_private *priv;
 	struct msm_kms *kms;
+	int val;
 
-	if (!dev)
+	printk("[Display] pm resume display_early_on=%d\n",display_early_on);
+
+	if (display_early_on) {
+		g_dev = dev;
+		queue_work(resume_wq, &resume_work);
+		display_early_on = false;
+	} else {
+		g_dev = NULL;
+	}
+
+	if (!dev) {
 		return -EINVAL;
+	}
 
 	ddev = dev_get_drvdata(dev);
-	if (!ddev || !ddev->dev_private)
+	if (!ddev || !ddev->dev_private) {
 		return -EINVAL;
+	}
 
 	priv = ddev->dev_private;
 	kms = priv->kms;
 
-	if (kms && kms->funcs && kms->funcs->pm_resume)
-		return kms->funcs->pm_resume(dev);
+	if (!g_dev && kms && kms->funcs && kms->funcs->pm_resume) {
+		val = kms->funcs->pm_resume(dev);
+		return val;
+	}
 
 	/* enable hot-plug polling */
 	drm_kms_helper_poll_enable(ddev);
@@ -1912,6 +1962,9 @@ static int msm_pdev_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	resume_wq = create_singlethread_workqueue("dsi_resume_wq");
+	INIT_WORK(&resume_work, dsi_resume_work);
+
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	return component_master_add_with_match(&pdev->dev, &msm_drm_ops, match);
 }
@@ -1922,6 +1975,10 @@ static int msm_pdev_remove(struct platform_device *pdev)
 	of_platform_depopulate(&pdev->dev);
 
 	msm_drm_unbind(&pdev->dev);
+
+	if(resume_wq)
+		destroy_workqueue(resume_wq);
+
 	return 0;
 }
 

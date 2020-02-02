@@ -69,6 +69,8 @@ struct msm_rtb_state {
 	int step_size;
 };
 
+extern int g_user_rtb_mode;
+
 #if defined(CONFIG_QCOM_RTB_SEPARATE_CPUS)
 DEFINE_PER_CPU(atomic_t, msm_rtb_idx_cpu);
 #else
@@ -77,7 +79,11 @@ static atomic_t msm_rtb_idx;
 
 static struct msm_rtb_state msm_rtb = {
 	.filter = 1 << LOGK_LOGBUF,
+#if defined (ASUS_USERDEBUG_BUILD)
 	.enabled = 1,
+#else
+	.enabled = 0,
+#endif
 };
 
 module_param_named(filter, msm_rtb.filter, uint, 0644);
@@ -285,8 +291,9 @@ static int msm_rtb_probe(struct platform_device *pdev)
 						&msm_rtb.phys,
 						GFP_KERNEL);
 
-	if (!msm_rtb.rtb)
-		return -ENOMEM;
+    if (!msm_rtb.rtb) {
+        return -ENOMEM;
+    }
 
 	msm_rtb.nentries = msm_rtb.size / sizeof(struct msm_rtb_layout);
 

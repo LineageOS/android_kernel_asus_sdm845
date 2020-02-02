@@ -100,6 +100,8 @@
 
 #define FG_ADC_RR_PMI_DIE_TEMP_CTRL		0xB0
 #define FG_ADC_RR_PMI_DIE_TEMP_TRIGGER		0xB1
+#define FG_ADC_RR_PMI_DIE_TEMP_TRIGGER_CTL  BIT(0)
+
 #define FG_ADC_RR_PMI_DIE_TEMP_STS		0xB2
 #define FG_ADC_RR_PMI_DIE_TEMP_CFG		0xB3
 #define FG_ADC_RR_PMI_DIE_TEMP_LSB		0xB4
@@ -107,6 +109,7 @@
 
 #define FG_ADC_RR_CHARGER_TEMP_CTRL		0xB8
 #define FG_ADC_RR_CHARGER_TEMP_TRIGGER		0xB9
+#define FG_ADC_RR_CHARGER_TEMP_TRIGGER_CTL  BIT(0)
 #define FG_ADC_RR_CHARGER_TEMP_STS		0xBA
 #define FG_ADC_RR_CHARGER_TEMP_CFG		0xBB
 #define FG_ADC_RR_CHARGER_TEMP_LSB		0xBC
@@ -227,6 +230,11 @@ enum rradc_channel_id {
 	RR_ADC_MAX
 };
 
+struct rradc_cache {
+	u16 value;
+	struct timespec ts;
+};
+
 struct rradc_chip {
 	struct device			*dev;
 	struct mutex			lock;
@@ -240,6 +248,7 @@ struct rradc_chip {
 	struct pmic_revid_data		*pmic_fab_id;
 	int volt;
 	struct power_supply		*usb_trig;
+	struct rradc_cache		usbin_v;
 };
 
 struct rradc_channels {
@@ -768,14 +777,14 @@ static int rradc_check_status_ready_with_retry(struct rradc_chip *chip,
 
 	while (((buf[0] & mask) != mask) &&
 			(retry_cnt < FG_RR_CONV_MAX_RETRY_CNT)) {
-		pr_debug("%s is not ready; nothing to read:0x%x\n",
-			rradc_chans[prop->channel].datasheet_name, buf[0]);
+		pr_info("%s is not ready; nothing to read:0x%x,retry_cnt=%d\n",
+			rradc_chans[prop->channel].datasheet_name, buf[0], retry_cnt);
 
 		if (((prop->channel == RR_ADC_CHG_TEMP) ||
 			(prop->channel == RR_ADC_SKIN_TEMP) ||
 			(prop->channel == RR_ADC_USBIN_I)) &&
 					((!rradc_is_usb_present(chip)))) {
-			pr_debug("USB not present for %d\n", prop->channel);
+			pr_info("USB not present for %d\n", prop->channel);
 			rc = -ENODATA;
 			break;
 		}
@@ -909,6 +918,32 @@ static int rradc_do_batt_id_conversion(struct rradc_chip *chip,
 	return ret;
 }
 
+void asus_set_trigger_ctl(struct rradc_chip *chip)
+{
+	int rc;
+	rc = rradc_masked_write(chip, FG_ADC_RR_PMI_DIE_TEMP_TRIGGER,
+				FG_ADC_RR_PMI_DIE_TEMP_TRIGGER_CTL,
+				FG_ADC_RR_PMI_DIE_TEMP_TRIGGER_CTL);
+	if(rc < 0){
+		pr_err("can not set FG_ADC_RR_PMI_DIE_TEMP_TRIGGER value!\n");
+	}
+
+	rc = rradc_masked_write(chip, FG_ADC_RR_CHARGER_TEMP_TRIGGER,
+				FG_ADC_RR_CHARGER_TEMP_TRIGGER_CTL,
+				FG_ADC_RR_CHARGER_TEMP_TRIGGER_CTL);
+	if(rc < 0){
+		pr_err("can not set FG_ADC_RR_CHARGER_TEMP_TRIGGER_CTL value!\n");
+	}
+
+	return ;
+}
+
+static void rradc_update_cache(struct rradc_cache *cache, u16 value)
+{
+	cache->value = value;
+	getboottime(&cache->ts);
+}
+
 static int rradc_do_conversion(struct rradc_chip *chip,
 			struct rradc_chan_prop *prop, u16 *data)
 {
@@ -928,6 +963,12 @@ static int rradc_do_conversion(struct rradc_chip *chip,
 		}
 		break;
 	case RR_ADC_USBIN_V:
+		/* Don't waste time reporting V BUS on boot */
+		if (ktime_get_seconds() <= 3) {
+			rc = -EAGAIN;
+			goto fail;
+		}
+
 		/* Force conversion every cycle */
 		rc = rradc_masked_write(chip, FG_ADC_RR_USB_IN_V_TRIGGER,
 				FG_ADC_RR_USB_IN_V_EVERY_CYCLE_MASK,
@@ -1048,6 +1089,9 @@ static int rradc_do_conversion(struct rradc_chip *chip,
 	} else {
 		*data = (buf[1] << 8) | buf[0];
 	}
+
+	if (prop->channel == RR_ADC_USBIN_V)
+		rradc_update_cache(&chip->usbin_v, *data);
 fail:
 	mutex_unlock(&chip->lock);
 
@@ -1234,6 +1278,11 @@ static int rradc_probe(struct platform_device *pdev)
 	indio_dev->info = &rradc_info;
 	indio_dev->channels = chip->iio_chans;
 	indio_dev->num_channels = chip->nchannels;
+
+	asus_set_trigger_ctl(chip);
+
+	chip->usbin_v.ts.tv_sec = 0;
+	chip->usbin_v.ts.tv_nsec = 0;
 
 	chip->usb_trig = power_supply_get_by_name("usb");
 	if (!chip->usb_trig)

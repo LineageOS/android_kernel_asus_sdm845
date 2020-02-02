@@ -357,6 +357,10 @@ static void pm_dev_err(struct device *dev, pm_message_t state, char *info,
 {
 	printk(KERN_ERR "PM: Device %s failed to %s%s: error %d\n",
 		dev_name(dev), pm_verb(state.event), info, error);
+	//[+++][PM]Debug for suspend and resume
+	ASUSEvtlog("PM: Device %s failed to %s%s: error %d\n",
+		dev_name(dev), pm_verb(state.event), info, error);
+	//[---][PM]Debug for suspend and resume
 }
 
 static void dpm_show_time(ktime_t starttime, pm_message_t state, char *info)

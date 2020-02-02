@@ -9,3 +9,4 @@ ccflags-y += -Idrivers/media/platform/msm/camera_v3/cam_smmu
 ccflags-y += -Idrivers/media/platform/msm/camera_v3/cam_utils
 
 obj-$(CONFIG_SPECTRA_CAMERA) += cam_flash_dev.o cam_flash_core.o cam_flash_soc.o
+obj-$(CONFIG_SPECTRA_CAMERA) += asus_flash.o

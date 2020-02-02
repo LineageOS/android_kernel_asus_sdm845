@@ -187,7 +187,7 @@ static int reg_fixed_voltage_probe(struct platform_device *pdev)
 
 	dev_dbg(&pdev->dev, "%s supplying %duV\n", drvdata->desc.name,
 		drvdata->desc.fixed_uV);
-
+	pr_info("regulator GPIO module probe %s done!\n",drvdata->desc.name);
 	return 0;
 }
 
@@ -209,6 +209,7 @@ static struct platform_driver regulator_fixed_voltage_driver = {
 
 static int __init regulator_fixed_voltage_init(void)
 {
+	pr_info("regulator GPIO module init\n");
 	return platform_driver_register(&regulator_fixed_voltage_driver);
 }
 subsys_initcall(regulator_fixed_voltage_init);

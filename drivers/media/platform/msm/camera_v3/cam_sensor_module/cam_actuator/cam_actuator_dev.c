@@ -311,6 +311,7 @@ static int32_t cam_actuator_driver_platform_probe(
 	struct cam_actuator_ctrl_t      *a_ctrl = NULL;
 	struct cam_actuator_soc_private *soc_private = NULL;
 
+	CAM_INFO(CAM_ACTUATOR, "Probe Start");
 	/* Create actuator control structure */
 	a_ctrl = devm_kzalloc(&pdev->dev,
 		sizeof(struct cam_actuator_ctrl_t), GFP_KERNEL);
@@ -381,7 +382,8 @@ static int32_t cam_actuator_driver_platform_probe(
 
 	platform_set_drvdata(pdev, a_ctrl);
 	a_ctrl->cam_act_state = CAM_ACTUATOR_INIT;
-
+	a_ctrl->debug_node_created = 0;//ASUS_BSP Zhengwei "porting actuator"
+	CAM_INFO(CAM_ACTUATOR, "Probe Done");
 	return rc;
 
 free_mem:
@@ -392,6 +394,7 @@ free_cci_client:
 	kfree(a_ctrl->io_master_info.cci_client);
 free_ctrl:
 	devm_kfree(&pdev->dev, a_ctrl);
+	CAM_ERR(CAM_ACTUATOR, "Probe Failed!");
 	return rc;
 }
 

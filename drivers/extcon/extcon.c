@@ -436,8 +436,12 @@ int extcon_sync(struct extcon_dev *edev, unsigned int id)
 		return -EINVAL;
 
 	index = find_cable_index_by_id(edev, id);
-	if (index < 0)
-		return index;
+	if (index < 0) {
+		if (0 == edev->max_supported)
+			index = 0;
+		else
+			return index;
+	}
 
 	spin_lock_irqsave(&edev->lock, flags);
 
@@ -511,8 +515,12 @@ int extcon_get_state(struct extcon_dev *edev, const unsigned int id)
 		return -EINVAL;
 
 	index = find_cable_index_by_id(edev, id);
-	if (index < 0)
-		return index;
+	if (index < 0) {
+		if (0 == edev->max_supported)
+			index = 0;
+		else
+			return index;
+	}
 
 	spin_lock_irqsave(&edev->lock, flags);
 	state = is_extcon_attached(edev, index);
@@ -545,8 +553,12 @@ int extcon_set_state(struct extcon_dev *edev, unsigned int id,
 		return -EINVAL;
 
 	index = find_cable_index_by_id(edev, id);
-	if (index < 0)
-		return index;
+	if (index < 0) {
+		if (0 == edev->max_supported)
+			index = 0;
+		else
+			return index;
+	}
 
 	spin_lock_irqsave(&edev->lock, flags);
 
@@ -598,8 +610,12 @@ int extcon_set_state_sync(struct extcon_dev *edev, unsigned int id,
 	unsigned long flags;
 
 	index = find_cable_index_by_id(edev, id);
-	if (index < 0)
-		return index;
+	if (index < 0) {
+		if (0 == edev->max_supported)
+			index = 0;
+		else
+			return index;
+	}
 
 	/* Check whether the external connector's state is changed. */
 	spin_lock_irqsave(&edev->lock, flags);
@@ -615,6 +631,74 @@ int extcon_set_state_sync(struct extcon_dev *edev, unsigned int id,
 	return extcon_sync(edev, id);
 }
 EXPORT_SYMBOL_GPL(extcon_set_state_sync);
+
+int extcon_set_state_sync_asus(struct extcon_dev *edev, int state)
+{
+	char name_buf[120];
+	char state_buf[120];
+	char *prop_buf;
+	char *envp[3];
+	int env_offset = 0;
+	int length;
+	unsigned long flags;
+
+	if (!edev)
+		return -EINVAL;
+
+	if (edev->max_supported != 0)
+		return -EINVAL;
+
+	spin_lock_irqsave(&edev->lock, flags);
+
+	/* Check whether the external connector's state is changed. */
+	if (edev->state == state) {
+		spin_unlock_irqrestore(&edev->lock, flags);
+		return 0;
+	}
+
+	/* Update the state for a external connector. */
+	edev->state = state;
+	raw_notifier_call_chain(&edev->nh[0], state, edev);
+
+    /* Sync state with an uevent notification */
+
+	/* This could be in interrupt handler */
+	prop_buf = (char *)get_zeroed_page(GFP_ATOMIC);
+	if (!prop_buf) {
+		/* Unlock early before uevent */
+		spin_unlock_irqrestore(&edev->lock, flags);
+
+		dev_err(&edev->dev, "out of memory in extcon_set_state\n");
+		kobject_uevent(&edev->dev.kobj, KOBJ_CHANGE);
+
+		return -ENOMEM;
+	}
+
+	length = name_show(&edev->dev, NULL, prop_buf);
+	if (length > 0) {
+		if (prop_buf[length - 1] == '\n')
+			prop_buf[length - 1] = 0;
+		snprintf(name_buf, sizeof(name_buf), "NAME=%s", prop_buf);
+		envp[env_offset++] = name_buf;
+	}
+
+	length = state_show(&edev->dev, NULL, prop_buf);
+	if (length > 0) {
+		if (prop_buf[length - 1] == '\n')
+			prop_buf[length - 1] = 0;
+		snprintf(state_buf, sizeof(state_buf), "STATE=%s", prop_buf);
+		envp[env_offset++] = state_buf;
+	}
+	envp[env_offset] = NULL;
+
+	/* Unlock early before uevent */
+	spin_unlock_irqrestore(&edev->lock, flags);
+	kobject_uevent_env(&edev->dev.kobj, KOBJ_CHANGE, envp);
+	free_page((unsigned long)prop_buf);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(extcon_set_state_sync_asus);
 
 /**
  * extcon_get_property() - Get the property value of a specific cable.
@@ -1103,14 +1187,18 @@ int extcon_dev_register(struct extcon_dev *edev)
 	edev->dev.class = extcon_class;
 	edev->dev.release = extcon_dev_release;
 
-	edev->name = dev_name(edev->dev.parent);
+	if (!edev->name)
+		edev->name = dev_name(edev->dev.parent);
 	if (IS_ERR_OR_NULL(edev->name)) {
 		dev_err(&edev->dev,
 			"extcon device name is null\n");
 		return -EINVAL;
 	}
-	dev_set_name(&edev->dev, "extcon%lu",
-			(unsigned long)atomic_inc_return(&edev_no));
+
+	if (!dev_name(&edev->dev)) {
+		dev_set_name(&edev->dev, "extcon%lu",
+				(unsigned long)atomic_inc_return(&edev_no));
+	}
 
 	if (edev->max_supported) {
 		char buf[10];

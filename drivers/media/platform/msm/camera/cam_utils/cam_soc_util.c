@@ -100,10 +100,8 @@ static const char *cam_soc_util_get_string_from_level(
 		return "SVSL1[4]";
 	case CAM_NOMINAL_VOTE:
 		return "NOM[5]";
-	case CAM_NOMINALL1_VOTE:
-		return "NOML1[6]";
 	case CAM_TURBO_VOTE:
-		return "TURBO[7]";
+		return "TURBO[6]";
 	default:
 		return "";
 	}
@@ -283,8 +281,6 @@ int cam_soc_util_get_level_from_string(const char *string,
 		*level = CAM_SVSL1_VOTE;
 	} else if (!strcmp(string, "nominal")) {
 		*level = CAM_NOMINAL_VOTE;
-	} else if (!strcmp(string, "nominal_l1")) {
-		*level = CAM_NOMINALL1_VOTE;
 	} else if (!strcmp(string, "turbo")) {
 		*level = CAM_TURBO_VOTE;
 	} else {

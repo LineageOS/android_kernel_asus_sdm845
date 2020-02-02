@@ -1,2 +1,6 @@
 config FREEZER
 	def_bool PM_SLEEP || CGROUP_FREEZER
+
+config PANIC_ON_OOPS_VALUE
+	int "Enable panic on oops"
+	default "1"

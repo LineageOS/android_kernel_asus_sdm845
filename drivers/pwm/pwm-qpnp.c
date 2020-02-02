@@ -1650,7 +1650,8 @@ int pwm_config_us(struct pwm_device *pwm, int duty_us, int period_us)
 		chip->pwm_config.pwm_period = period_us;
 		if ((unsigned int)period_us >
 		    (unsigned int)(-1) / NSEC_PER_USEC)
-			pwm->state.period = 0;
+			//pwm->state.period = 0;
+			pwm->state.period = (unsigned int)(-1) / NSEC_PER_USEC;
 		else
 			pwm->state.period
 				= (unsigned int)period_us * NSEC_PER_USEC;

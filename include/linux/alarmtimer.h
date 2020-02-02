@@ -38,6 +38,9 @@ struct alarm {
 	enum alarmtimer_restart	(*function)(struct alarm *, ktime_t now);
 	enum alarmtimer_type	type;
 	int			state;
+	int pid;//asus add to debug
+	int tgid;//asus add to debug
+	char comm[TASK_COMM_LEN];//asus add to debug
 	void			*data;
 };
 

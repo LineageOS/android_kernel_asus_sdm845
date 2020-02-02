@@ -1480,7 +1480,7 @@ static int32_t cam_cci_read_bytes(struct v4l2_subdev *sd,
 			cci_dev->is_burst_read = false;
 			rc = cam_cci_read(sd, c_ctrl);
 		}
-		if (rc) {
+		if (rc < 0) {
 			CAM_ERR(CAM_CCI, "failed to read rc:%d", rc);
 			goto ERROR;
 		}
