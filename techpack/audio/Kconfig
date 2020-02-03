@@ -30,14 +30,10 @@ config PINCTRL_WCD
 	tristate "PINCTRL_WCD"
 config QTI_PP
 	tristate "QTI_PP"
-config REGMAP_SWR
-	tristate "REGMAP_SWR"
 config SND_HWDEP_ROUTING
 	tristate "SND_HWDEP_ROUTING"
 config SND_SOC_MACHINE_SDM845
 	tristate "SND_SOC_MACHINE_SDM845"
-config SND_SOC_MAX98927
-	tristate "SND_SOC_MAX98927"
 config SND_SOC_MSM_HDMI_CODEC_RX
 	tristate "SND_SOC_MSM_HDMI_CODEC_RX"
 config SND_SOC_MSM_HOSTLESS_PCM
@@ -58,23 +54,19 @@ config SND_SOC_WCD934X_MBHC
 	tristate "SND_SOC_WCD934X_MBHC"
 config SND_SOC_WCD9XXX_V2
 	tristate "SND_SOC_WCD9XXX_V2"
-config SND_SOC_WCD_CPE
-	tristate "SND_SOC_WCD_CPE"
 config SND_SOC_WCD_MBHC
 	tristate "SND_SOC_WCD_MBHC"
 config SND_SOC_WCD_MBHC_ADC
 	tristate "SND_SOC_WCD_MBHC_ADC"
 config SND_SOC_WCD_SPI
 	tristate "SND_SOC_WCD_SPI"
-config SND_SOC_WSA881X
-	tristate "SND_SOC_WSA881X"
-config SOUNDWIRE
-	tristate "SOUNDWIRE"
-config SOUNDWIRE_WCD_CTRL
-	tristate "SOUNDWIRE_WCD_CTRL"
 config WCD9XXX_CODEC_CORE
 	tristate "WCD9XXX_CODEC_CORE"
 config WCD_DSP_GLINK
 	tristate "WCD_DSP_GLINK"
 config WCD_SPI_AC
 	tristate "WCD_SPI_AC"
+config SND_SOC_AW87339
+    tristate "SND_SOC_AW87339"
+config SND_SOC_TFA9874
+    tristate "SND_SOC_TFA9874"
