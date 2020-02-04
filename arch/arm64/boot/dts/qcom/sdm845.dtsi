@@ -510,15 +510,6 @@
 					fsmgr_flags = "wait,slotselect";
 					status = "ok";
 				};
-
-				product {
-					compatible = "android,product";
-					dev = "/dev/block/platform/soc/1d84000.ufshc/by-name/xrom";
-					type = "ext4";
-					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait,slotselect";
-					status = "ok";
-				};
 			};
 		};
 	};
