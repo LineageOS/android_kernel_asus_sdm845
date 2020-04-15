@@ -1,0 +1,7 @@
+config GOODIX_FINGERPRINT
+	tristate "generic goodix fingerprint driver"
+	default m
+	help
+	add support for goodix fingerprint driver.
+	To compile this driver as a module, choose M here: the
+	  module will be called fingerprint.
