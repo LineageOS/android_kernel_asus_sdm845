@@ -226,6 +226,56 @@ rtc_rw_fail:
 	return rc;
 }
 
+struct qpnp_rtc *asus_rtc_dd;
+int asus_qpnp_rtc_read_time(unsigned long * secs)
+{
+	int rc = -1;
+	u8 value[4], reg;
+
+	if(!asus_rtc_dd){
+		pr_err("asus rtc add is NULL!\n");
+		return rc;
+	}
+
+	if (secs == NULL) {
+		pr_err("secs pointer is NULL!\n");
+		return rc;
+	}
+
+	rc = qpnp_read_wrapper(asus_rtc_dd, value,
+				asus_rtc_dd->rtc_base + REG_OFFSET_RTC_READ,
+				NUM_8_BIT_RTC_REGS);
+	if (rc) {
+		pr_err("Read from RTC reg failed\n");
+		return rc;
+	}
+
+	/*
+	 * Read the LSB again and check if there has been a carry over
+	 * If there is, redo the read operation
+	 */
+	rc = qpnp_read_wrapper(asus_rtc_dd, &reg,
+				asus_rtc_dd->rtc_base + REG_OFFSET_RTC_READ, 1);
+	if (rc) {
+		pr_err("Read from RTC reg failed\n");
+		return rc;
+	}
+
+	if (reg < value[0]) {
+		rc = qpnp_read_wrapper(asus_rtc_dd, value,
+				asus_rtc_dd->rtc_base + REG_OFFSET_RTC_READ,
+				NUM_8_BIT_RTC_REGS);
+		if (rc) {
+			pr_err("Read from RTC reg failed\n");
+			return rc;
+		}
+	}
+
+	*secs = TO_SECS(value);
+
+	return 0;
+}
+
 static int
 qpnp_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
@@ -597,6 +647,9 @@ static int qpnp_rtc_probe(struct platform_device *pdev)
 		rtc_ops = &qpnp_rtc_rw_ops;
 
 	dev_set_drvdata(&pdev->dev, rtc_dd);
+
+	asus_rtc_dd = rtc_dd;
+	
 	device_init_wakeup(&pdev->dev, 1);
 	/* Register the RTC device */
 	rtc_dd->rtc = rtc_device_register("qpnp_rtc", &pdev->dev,
@@ -664,30 +717,28 @@ static void qpnp_rtc_shutdown(struct platform_device *pdev)
 		return;
 	}
 	rtc_alarm_powerup = rtc_dd->rtc_alarm_powerup;
-	if (!rtc_alarm_powerup && !poweron_alarm) {
-		spin_lock_irqsave(&rtc_dd->alarm_ctrl_lock, irq_flags);
-		dev_dbg(&pdev->dev, "Disabling alarm interrupts\n");
+	spin_lock_irqsave(&rtc_dd->alarm_ctrl_lock, irq_flags);
+	dev_dbg(&pdev->dev, "Disabling alarm interrupts\n");
 
-		/* Disable RTC alarms */
-		reg = rtc_dd->alarm_ctrl_reg1;
-		reg &= ~BIT_RTC_ALARM_ENABLE;
-		rc = qpnp_write_wrapper(rtc_dd, &reg,
-			rtc_dd->alarm_base + REG_OFFSET_ALARM_CTRL1, 1);
-		if (rc) {
-			dev_err(rtc_dd->rtc_dev, "SPMI write failed\n");
-			goto fail_alarm_disable;
-		}
+	/* Disable RTC alarms */
+	reg = rtc_dd->alarm_ctrl_reg1;
+	reg &= ~BIT_RTC_ALARM_ENABLE;
+	rc = qpnp_write_wrapper(rtc_dd, &reg,
+		rtc_dd->alarm_base + REG_OFFSET_ALARM_CTRL1, 1);
+	if (rc) {
+		dev_err(rtc_dd->rtc_dev, "SPMI write failed\n");
+		goto fail_alarm_disable;
+	}
 
-		/* Clear Alarm register */
-		rc = qpnp_write_wrapper(rtc_dd, value,
-				rtc_dd->alarm_base + REG_OFFSET_ALARM_RW,
-				NUM_8_BIT_RTC_REGS);
-		if (rc)
-			dev_err(rtc_dd->rtc_dev, "SPMI write failed\n");
+	/* Clear Alarm register */
+	rc = qpnp_write_wrapper(rtc_dd, value,
+			rtc_dd->alarm_base + REG_OFFSET_ALARM_RW,
+			NUM_8_BIT_RTC_REGS);
+	if (rc)
+		dev_err(rtc_dd->rtc_dev, "SPMI write failed\n");
 
 fail_alarm_disable:
-		spin_unlock_irqrestore(&rtc_dd->alarm_ctrl_lock, irq_flags);
-	}
+	spin_unlock_irqrestore(&rtc_dd->alarm_ctrl_lock, irq_flags);
 }
 
 static const struct of_device_id spmi_match_table[] = {

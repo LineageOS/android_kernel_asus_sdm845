@@ -74,6 +74,12 @@ enum print_reason {
 #define FG_ESR_VOTER			"FG_ESR_VOTER"
 #define FCC_STEPPER_VOTER		"FCC_STEPPER_VOTER"
 #define PD_NOT_SUPPORTED_VOTER		"PD_NOT_SUPPORTED_VOTER"
+#define BATTCHG_JEITA_EN_VOTER			"BATTCHG_JEITA_EN_VOTER"
+#define DEMO_APP_VOTER			"DEMO_APP_VOTER"
+#define USBIN_PRE_CONFIG_VOTER			"USBIN_PRE_CONFIG_VOTER"
+#define SOFT_JEITA_RECHARGE_VOTER			"SOFT_JEITA_RECHARGE_VOTER"
+#define FCC_OVERRIDE_VOTER			"FCC_OVERRIDE_VOTER"
+#define SMARTCHG_VOTER		"SMARTCHG_VOTER"
 
 #define VCONN_MAX_ATTEMPTS	3
 #define OTG_MAX_ATTEMPTS	3
@@ -281,6 +287,8 @@ struct smb_charger {
 	struct smb_regulator	*vbus_vreg;
 	struct smb_regulator	*vconn_vreg;
 	struct regulator	*dpdm_reg;
+	struct regulator	*bob_vreg;
+	struct regulator	*bob_ao_vreg;
 
 	/* votables */
 	struct votable		*dc_suspend_votable;
@@ -385,6 +393,10 @@ struct smb_charger {
 	int			pulse_cnt;
 
 	int			die_health;
+
+	/* asus charger info */
+	struct asus_charger *asus_chg;
+	int asus_capacity;
 };
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val);
@@ -441,7 +453,7 @@ int smblib_get_prop_batt_present(struct smb_charger *chg,
 int smblib_get_prop_batt_capacity(struct smb_charger *chg,
 				union power_supply_propval *val);
 int smblib_get_prop_batt_status(struct smb_charger *chg,
-				union power_supply_propval *val);
+				union power_supply_propval *val,union power_supply_propval *asusval);
 int smblib_get_prop_batt_charge_type(struct smb_charger *chg,
 				union power_supply_propval *val);
 int smblib_get_prop_batt_charge_done(struct smb_charger *chg,
