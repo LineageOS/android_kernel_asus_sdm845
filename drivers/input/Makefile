@@ -36,3 +36,5 @@ obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 obj-$(CONFIG_SMI130)   += sensors/smi130/
 
 obj-$(CONFIG_GOODIX_FINGERPRINT)    += fingerprint/
+
+obj-$(CONFIG_SENSORS_HALL)	+= hall_sensor.o
