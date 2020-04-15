@@ -255,6 +255,7 @@ extern int extcon_set_state(struct extcon_dev *edev, unsigned int id,
 				   bool cable_state);
 extern int extcon_set_state_sync(struct extcon_dev *edev, unsigned int id,
 				bool cable_state);
+extern int extcon_set_state_sync_asus(struct extcon_dev *edev, int state);
 /*
  * Synchronize the state and property data for a specific external connector.
  */
@@ -364,6 +365,11 @@ static inline int extcon_set_state(struct extcon_dev *edev, unsigned int id,
 
 static inline int extcon_set_state_sync(struct extcon_dev *edev, unsigned int id,
 				bool cable_state)
+{
+	return 0;
+}
+
+static int extcon_set_state_sync_asus(struct extcon_dev *edev, int state)
 {
 	return 0;
 }
