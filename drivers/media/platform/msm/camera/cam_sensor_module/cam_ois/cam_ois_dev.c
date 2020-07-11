@@ -16,6 +16,8 @@
 #include "cam_ois_core.h"
 #include "cam_debug_util.h"
 
+#include "asus_ois.h"
+
 static long cam_ois_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)
 {
@@ -255,6 +257,8 @@ static int32_t cam_ois_platform_driver_probe(
 	struct cam_ois_ctrl_t          *o_ctrl = NULL;
 	struct cam_ois_soc_private     *soc_private = NULL;
 
+	CAM_INFO(CAM_OIS,"Probe Start");
+
 	o_ctrl = kzalloc(sizeof(struct cam_ois_ctrl_t), GFP_KERNEL);
 	if (!o_ctrl)
 		return -ENOMEM;
@@ -307,6 +311,9 @@ static int32_t cam_ois_platform_driver_probe(
 
 	o_ctrl->cam_ois_state = CAM_OIS_INIT;
 
+	asus_ois_init(o_ctrl);//ASUS_BSP Zhengwei "porting ois"
+	CAM_INFO(CAM_OIS,"Probe Succeed");
+
 	return rc;
 unreg_subdev:
 	cam_unregister_subdev(&(o_ctrl->v4l2_dev_str));
@@ -316,6 +323,7 @@ free_cci_client:
 	kfree(o_ctrl->io_master_info.cci_client);
 free_o_ctrl:
 	kfree(o_ctrl);
+	CAM_ERR(CAM_OIS,"Probe Failed!");
 	return rc;
 }
 
@@ -352,7 +360,7 @@ static int cam_ois_platform_driver_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id cam_ois_dt_match[] = {
-	{ .compatible = "qcom,ois" },
+	{ .compatible = "qcom,lc898123f40" },
 	{ }
 };
 
@@ -361,7 +369,7 @@ MODULE_DEVICE_TABLE(of, cam_ois_dt_match);
 
 static struct platform_driver cam_ois_platform_driver = {
 	.driver = {
-		.name = "qcom,ois",
+		.name = "qcom,lc898123f40",
 		.owner = THIS_MODULE,
 		.of_match_table = cam_ois_dt_match,
 	},
@@ -416,8 +424,11 @@ static void __exit cam_ois_driver_exit(void)
 	if (registered_driver.i2c_driver)
 		i2c_del_driver(&cam_ois_i2c_driver);
 }
-
+#if 1
 module_init(cam_ois_driver_init);
+#else
+late_initcall(cam_ois_driver_init);//probe late for regulator
+#endif
 module_exit(cam_ois_driver_exit);
 MODULE_DESCRIPTION("CAM OIS driver");
 MODULE_LICENSE("GPL v2");

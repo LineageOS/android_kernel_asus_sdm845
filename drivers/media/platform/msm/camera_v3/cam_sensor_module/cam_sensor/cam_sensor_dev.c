@@ -340,6 +340,7 @@ static int32_t cam_sensor_driver_platform_probe(
 	s_ctrl->sensordata->power_info.dev = &pdev->dev;
 	platform_set_drvdata(pdev, s_ctrl);
 	s_ctrl->sensor_state = CAM_SENSOR_INIT;
+	s_ctrl->power_state = 0;//ASUS_BSP Zhengwei "porting sensor ATD"
 
 	return rc;
 unreg_subdev:

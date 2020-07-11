@@ -29,4 +29,11 @@ static inline int wled_flash_led_prepare(struct led_trigger *trig, int options,
 	return -EINVAL;
 }
 
+//ASUS_BSP +++ Zhengwei "porting flash"
+struct cam_flash_ctrl;
+struct cam_flash_frame_setting;
+int cam_flash_low(struct cam_flash_ctrl *flash_ctrl,struct cam_flash_frame_setting *flash_data);
+int cam_flash_high(struct cam_flash_ctrl *flash_ctrl,struct cam_flash_frame_setting *flash_data);
+//ASUS_BSP --- Zhengwei "porting flash"
+
 #endif /*_CAM_FLASH_CORE_H_*/

@@ -19,6 +19,8 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+#include "asus_flash.h"
+
 static int cam_flash_prepare(struct cam_flash_ctrl *flash_ctrl,
 	bool regulator_enable)
 {
@@ -43,6 +45,7 @@ static int cam_flash_prepare(struct cam_flash_ctrl *flash_ctrl,
 				return rc;
 			}
 
+			CAM_INFO(CAM_FLASH,"Regulator ON");
 			flash_ctrl->is_regulator_enabled = true;
 		} else if (!regulator_enable &&
 				flash_ctrl->is_regulator_enabled == true) {
@@ -54,6 +57,7 @@ static int cam_flash_prepare(struct cam_flash_ctrl *flash_ctrl,
 				return rc;
 			}
 
+			CAM_INFO(CAM_FLASH,"Regulator OFF");
 			flash_ctrl->is_regulator_enabled = false;
 		} else {
 			CAM_ERR(CAM_FLASH, "Wrong Wled flash state: %d",
@@ -494,7 +498,7 @@ int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 	return 0;
 }
 
-static int cam_flash_low(
+int cam_flash_low(
 	struct cam_flash_ctrl *flash_ctrl,
 	struct cam_flash_frame_setting *flash_data)
 {
@@ -519,7 +523,7 @@ static int cam_flash_low(
 	return rc;
 }
 
-static int cam_flash_high(
+int cam_flash_high(
 	struct cam_flash_ctrl *flash_ctrl,
 	struct cam_flash_frame_setting *flash_data)
 {
@@ -743,7 +747,12 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 					return -EINVAL;
 				}
 
-				rc = cam_flash_high(fctrl, flash_data);
+#ifndef ASUS_FACTORY_BUILD
+				if(asus_flash_is_battery_low())//ASUS_BSP Zhengwei "use torch for flash if battery low"
+					rc = cam_flash_low(fctrl, flash_data);
+				else
+#endif
+					rc = cam_flash_high(fctrl, flash_data);
 				if (rc)
 					CAM_ERR(CAM_FLASH,
 						"FLASH ON failed : %d", rc);
@@ -852,7 +861,12 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 			(flash_data->cmn_attr.request_id == req_id)) {
 			/* Turn On Flash */
 			if (fctrl->flash_state == CAM_FLASH_STATE_START) {
-				rc = cam_flash_high(fctrl, flash_data);
+#ifndef ASUS_FACTORY_BUILD
+				if(asus_flash_is_battery_low())//ASUS_BSP Zhengwei "use torch for flash if battery low"
+					rc = cam_flash_low(fctrl, flash_data);
+				else
+#endif
+					rc = cam_flash_high(fctrl, flash_data);
 				if (rc) {
 					CAM_ERR(CAM_FLASH,
 						"Flash ON failed: rc= %d",
