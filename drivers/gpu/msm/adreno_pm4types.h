@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2017,2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2017, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -106,8 +106,6 @@
 
 /* A5XX Enable yield in RB only */
 #define CP_YIELD_ENABLE 0x1C
-
-#define CP_WHERE_AM_I 0x62
 
 /* Enable/Disable/Defer A5x global preemption model */
 #define CP_PREEMPT_ENABLE_GLOBAL    0x69

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2018,2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2018, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -281,8 +281,8 @@ enum adreno_preempt_states {
 /**
  * struct adreno_preemption
  * @state: The current state of preemption
- * @scratch: Memory descriptor for the memory where the GPU writes the
- * current ctxt record address and preemption counters on switch
+ * @counters: Memory descriptor for the memory where the GPU writes the
+ * preemption counters on switch
  * @timer: A timer to make sure preemption doesn't stall
  * @work: A work struct for the preemption worker (for 5XX)
  * @token_submit: Indicates if a preempt token has been submitted in
@@ -295,7 +295,7 @@ enum adreno_preempt_states {
  */
 struct adreno_preemption {
 	atomic_t state;
-	struct kgsl_memdesc scratch;
+	struct kgsl_memdesc counters;
 	struct timer_list timer;
 	struct work_struct work;
 	bool token_submit;
@@ -1189,7 +1189,6 @@ void adreno_cx_misc_regrmw(struct adreno_device *adreno_dev,
 		unsigned int offsetwords,
 		unsigned int mask, unsigned int bits);
 
-u32 adreno_get_ucode_version(const u32 *data);
 
 #define ADRENO_TARGET(_name, _id) \
 static inline int adreno_is_##_name(struct adreno_device *adreno_dev) \
