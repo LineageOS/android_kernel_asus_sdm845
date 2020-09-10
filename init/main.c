@@ -137,6 +137,73 @@ static char *ramdisk_execute_command;
 bool static_key_initialized __read_mostly;
 EXPORT_SYMBOL_GPL(static_key_initialized);
 
+//ASUS_BSP add asus_hw_id++++
+int g_asus_hw_id = 999;
+EXPORT_SYMBOL(g_asus_hw_id);
+
+static int get_hw_id(char *str)
+{
+    char hw_id_str[4] = {0};
+    strncpy(hw_id_str, str, sizeof(hw_id_str));
+
+    if (0 == strncmp(hw_id_str, "EVB", sizeof(hw_id_str))) {
+        g_asus_hw_id = 0;
+    } else if (0 == strncmp(hw_id_str, "SR1", sizeof(hw_id_str))) {
+        g_asus_hw_id = 1;
+    } else if (0 == strncmp(hw_id_str, "SR2", sizeof(hw_id_str))) {
+        g_asus_hw_id = 2;
+    } else if (0 == strncmp(hw_id_str, "ER", sizeof(hw_id_str))) {
+        g_asus_hw_id = 3;
+    } else if (0 == strncmp(hw_id_str, "ER2", sizeof(hw_id_str))) {
+        g_asus_hw_id = 4;
+    } else if (0 == strncmp(hw_id_str, "ER3", sizeof(hw_id_str))) {
+        g_asus_hw_id = 5;
+    } else {
+        pr_err(" unknown hw_id_str = %s\n ", hw_id_str);
+    }
+
+    pr_err(" asus_hw_id = %d\n ", g_asus_hw_id);
+
+	return 0;
+}
+__setup("HW=", get_hw_id);
+//ASUS_BSP add asus_hw_id++++
+
+//ASUS_BSP add charger_mode flag+++
+bool g_charger_mode = false;
+static int set_charger_mode(char *str)
+{
+    if ( strcmp("charger", str) == 0 )
+        g_charger_mode = true;
+    else
+        g_charger_mode = false;
+
+    pr_err("[Charger]g_charger_mode = %d\n", g_charger_mode);
+    return 0;
+}
+__setup("androidboot.mode=", set_charger_mode);
+EXPORT_SYMBOL(g_charger_mode);
+//ASUS_BSP add charger_mode flag---
+
+//[+++]ASUS : Add for COUNTRY
+bool g_Country_RU = false;
+bool g_Country_WW = false;
+static int get_country_code(char *str)
+{
+
+    if ( strcmp("RU", str) == 0 )
+        g_Country_RU = true;
+    else 
+        g_Country_WW = true;
+
+	printk("COUNTRY=%s\n", str);
+    return 0;
+}
+__setup("CountryCode=", get_country_code);
+EXPORT_SYMBOL(g_Country_RU);
+EXPORT_SYMBOL(g_Country_WW);
+//[---]ASUS : Add for COUNTRY
+
 /*
  * If set, this is an indication to the drivers that reset the underlying
  * device before going ahead with the initialization otherwise driver might
@@ -191,6 +258,80 @@ static bool __init obsolete_checksetup(char *line)
 
 	return had_early_param;
 }
+
+char lcd_id1[64] = {0};
+EXPORT_SYMBOL(lcd_id1);
+
+static int get_lcd_Id(char *str)
+{
+    strncpy(lcd_id1, str, sizeof(lcd_id1));
+    pr_err(" [Display]lcd_id1 = 0x%s\n ", lcd_id1);
+
+	return 0;
+}
+__setup("LCD_ID1=", get_lcd_Id);
+
+char lcd_stage_id[64] = {0};
+EXPORT_SYMBOL(lcd_stage_id);
+
+static int get_lcd_stageId(char *str)
+{
+    strncpy(lcd_stage_id, str, sizeof(lcd_stage_id));
+    pr_err(" [Display]lcd_stage_id = %s\n ", lcd_stage_id);
+
+	return 0;
+}
+__setup("StageID=", get_lcd_stageId);
+
+//ASUS_BSP add asus_prj_id++++
+int g_asus_prj_id = 0;
+EXPORT_SYMBOL(g_asus_prj_id);
+
+static int get_prj_id(char *str)
+{
+    char prj_id_str[10] = {0};
+    strncpy(prj_id_str, str, sizeof(prj_id_str));
+
+    if (0 == strncmp(prj_id_str, "ZS620KL", sizeof(prj_id_str))) {
+        g_asus_prj_id = 0;
+    } else if (0 == strncmp(prj_id_str, "ZS620KL2", sizeof(prj_id_str))) {
+        g_asus_prj_id = 1;
+    } else {
+        pr_err(" unknown prj_id_str = %s\n ", prj_id_str);
+    }
+
+    pr_err(" asus_prj_id = %d\n ", g_asus_prj_id);
+
+	return 0;
+}
+__setup("PRJ=", get_prj_id);
+//ASUS_BSP add asus_prj_id++++
+
+//ASUS_BSP add bat_reload_condition++++
+int g_bat_reload_cond = 0;
+EXPORT_SYMBOL(g_bat_reload_cond);
+
+static int get_bat_reload_condition(char *str)
+{
+    char reload_cond_str[2] = {0};
+    strncpy(reload_cond_str, str, sizeof(reload_cond_str));
+
+    if (0 == strncmp(reload_cond_str, "0", sizeof(reload_cond_str))) {
+        g_bat_reload_cond = 0;
+    } else if (0 == strncmp(reload_cond_str, "1", sizeof(reload_cond_str))) {
+        g_bat_reload_cond = 1;
+    } else if (0 == strncmp(reload_cond_str, "2", sizeof(reload_cond_str))) {
+        g_bat_reload_cond = 2;
+    } else {
+        pr_err(" unknown reload_cond_str = %s\n ", reload_cond_str);
+    }
+
+    pr_err(" g_bat_reload_cond = %d\n ", g_bat_reload_cond);
+
+	return 0;
+}
+__setup("bat_reload_cond=", get_bat_reload_condition);
+//ASUS_BSP add bat_reload_condition----
 
 /*
  * This should be approx 2 Bo*oMips to start (note initial shift), and will
