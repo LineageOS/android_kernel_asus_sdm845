@@ -25,6 +25,8 @@
 #define to_drm_minor(d) dev_get_drvdata(d)
 #define to_drm_connector(d) dev_get_drvdata(d)
 
+static int gHDRMode = 0;
+
 static struct device_type drm_sysfs_device_minor = {
 	.name = "drm_minor"
 };
@@ -37,6 +39,37 @@ static char *drm_devnode(struct device *dev, umode_t *mode)
 }
 
 static CLASS_ATTR_STRING(version, S_IRUGO, "drm 1.1.0 20060810");
+
+// ASUS_BSP Display +++
+static ssize_t hdr_mode_show(struct class *class,
+					struct class_attribute *attr,
+					char *buf)
+{
+	printk("[Display] show HDR mode %d\n", gHDRMode);
+	return snprintf(buf, 8, "%d\n", gHDRMode);
+}
+
+static ssize_t hdr_mode_store(struct class *class,
+					struct class_attribute *attr,
+					const char *buf, size_t count)
+{
+	if (!count)
+		return -EINVAL;
+
+	if (!strncmp(buf, "1", 1)) {
+		printk("[Display] store HDR mode 1\n");
+		gHDRMode = 1;
+	} else if (!strncmp(buf, "0", 1)) {
+		printk("[Display] store HDR mode 0\n");
+		gHDRMode = 0;
+	} else {
+		printk("[Display] unknown HDR mode\n");
+	}
+
+	return count;
+}
+static CLASS_ATTR_RW(hdr_mode);
+// ASUS_BSP Display ---
 
 /**
  * drm_sysfs_init - initialize sysfs helpers
@@ -63,6 +96,14 @@ int drm_sysfs_init(void)
 		return err;
 	}
 
+	err = class_create_file(drm_class, &class_attr_hdr_mode);
+	if (err) {
+		printk("[Display] Fail to create hdr_mode file node\n");
+		class_destroy(drm_class);
+		drm_class = NULL;
+		return err;
+	}
+
 	drm_class->devnode = drm_devnode;
 	return 0;
 }
@@ -77,6 +118,7 @@ void drm_sysfs_destroy(void)
 	if (IS_ERR_OR_NULL(drm_class))
 		return;
 	class_remove_file(drm_class, &class_attr_version.attr);
+	class_remove_file(drm_class, &class_attr_hdr_mode);
 	class_destroy(drm_class);
 	drm_class = NULL;
 }
