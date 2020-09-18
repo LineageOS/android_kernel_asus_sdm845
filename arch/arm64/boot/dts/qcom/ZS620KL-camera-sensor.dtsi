@@ -1,0 +1,513 @@
+/*
+ * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pm8998_gpios {
+	interrupts = <0x0 0xc0 0 IRQ_TYPE_NONE>,
+			<0x0 0xc1 0 IRQ_TYPE_NONE>,
+			<0x0 0xc3 0 IRQ_TYPE_NONE>,
+			<0x0 0xc4 0 IRQ_TYPE_NONE>,
+			<0x0 0xc5 0 IRQ_TYPE_NONE>,
+			<0x0 0xc6 0 IRQ_TYPE_NONE>,
+			<0x0 0xc7 0 IRQ_TYPE_NONE>,
+			<0x0 0xc8 0 IRQ_TYPE_NONE>,
+			<0x0 0xc9 0 IRQ_TYPE_NONE>,
+			<0x0 0xca 0 IRQ_TYPE_NONE>,
+			<0x0 0xcb 0 IRQ_TYPE_NONE>,
+			<0x0 0xcc 0 IRQ_TYPE_NONE>,
+			<0x0 0xcd 0 IRQ_TYPE_NONE>,
+			<0x0 0xce 0 IRQ_TYPE_NONE>,
+			<0x0 0xcf 0 IRQ_TYPE_NONE>,
+			<0x0 0xd0 0 IRQ_TYPE_NONE>,
+			<0x0 0xd1 0 IRQ_TYPE_NONE>,
+			<0x0 0xd2 0 IRQ_TYPE_NONE>,
+			<0x0 0xd4 0 IRQ_TYPE_NONE>,
+			<0x0 0xd6 0 IRQ_TYPE_NONE>;
+	interrupt-names = "pm8998_gpio1", "pm8998_gpio2",
+			"pm8998_gpio4", "pm8998_gpio5",
+			"pm8998_gpio6", "pm8998_gpio7",
+			"pm8998_gpio8", "pm8998_gpio9",
+			"pm8998_gpio10", "pm8998_gpio11",
+			"pm8998_gpio12", "pm8998_gpio13",
+			"pm8998_gpio14", "pm8998_gpio15",
+			"pm8998_gpio16", "pm8998_gpio17",
+			"pm8998_gpio18", "pm8998_gpio19",
+			"pm8998_gpio21", "pm8998_gpio23";
+	qcom,gpios-disallowed = <3 20 22 24 25 26>;
+
+	camera_1P2_vdig_en {
+		camera_1P2_vdig_en_default: camera_1P2_vdig_en_default {
+			pins = "gpio15";
+			function = "normal";
+			power-source = <0>;
+			output-low;
+		};
+	};
+
+	camera_rear_vdig_en {
+		camera_rear_vdig_en_default: camera_rear_vdig_en_default {
+			pins = "gpio11";
+			function = "normal";
+			power-source = <0>;
+			output-low;
+		};
+	};
+
+	camera_vana_en {
+		camera_vana_en_default: camera_vana_en_default {
+			pins = "gpio10";
+			function = "normal";
+			power-source = <0>;
+			output-low;
+		};
+	};
+
+	camera_vana1_en {
+		camera_vana1_en_default: camera_vana1_en_default {
+			pins = "gpio16";
+			function = "normal";
+			power-source = <0>;
+			output-low;
+		};
+	};
+
+	camera_vaf_en {
+		camera_vaf_en_default: camera_vaf_en_default {
+			pins = "gpio13";
+			function = "normal";
+			power-source = <0>;
+			output-low;
+		};
+	};
+};
+
+&soc {
+
+	camera_1P2_vdig_ldo: gpio-regulator@5 {
+		compatible = "regulator-fixed";
+		reg = <0x05 0x00>;
+		regulator-name = "camera_1P2_vdig_ldo";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+		regulator-enable-ramp-delay = <233>;
+		enable-active-high;
+		gpio = <&pm8998_gpios 15 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&camera_1P2_vdig_en_default>;
+		vin-supply = <&pm8998_s4>;
+	};
+
+	camera_rear_vdig_ldo: gpio-regulator@6 {
+		compatible = "regulator-fixed";
+		reg = <0x06 0x00>;
+		regulator-name = "camera_rear_vdig_ldo";
+		regulator-min-microvolt = <1050000>;
+		regulator-max-microvolt = <1050000>;
+		regulator-enable-ramp-delay = <233>;
+		enable-active-high;
+		gpio = <&pm8998_gpios 11 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&camera_rear_vdig_en_default>;
+		vin-supply = <&pmi8998_bob>;
+	};
+
+	camera_vana0_ldo: gpio-regulator@7{
+		compatible = "regulator-fixed";
+		reg = <0x07 0x00>;
+		regulator-name = "camera_vana0_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <233>;
+		enable-active-high;
+		gpio = <&pm8998_gpios 10 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&camera_vana_en_default>;
+		vin-supply = <&pmi8998_bob>;
+	};
+
+	camera_vana1_ldo: gpio-regulator@8 {
+		compatible = "regulator-fixed";
+		reg = <0x08 0x00>;
+		regulator-name = "camera_vana1_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <233>;
+		enable-active-high;
+		gpio = <&pm8998_gpios 16 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&camera_vana1_en_default>;
+		vin-supply = <&pmi8998_bob>;
+	};
+};
+
+&camera_rear_ldo {
+	status = "disabled";
+};
+&camera_ldo {
+	status = "disabled";
+};
+&camera_vana_ldo {
+	status = "disabled";
+};
+//ASUS_BSP gpio_key +++
+&soc {
+	gpio_keys {
+		cam_snapshot {
+			status = "disabled";
+		};
+
+		cam_focus {
+			status = "disabled";
+		};
+	};
+};
+//ASUS_BSP gpio_key ---
+
+//ASUS_BSP flash +++
+&pmi8998_flash0 {
+	qcom,max-current = <800>;
+	qcom,current-ma = <600>;
+};
+
+&pmi8998_flash1 {
+	status = "disabled";
+};
+
+&pmi8998_flash2 {
+	status = "disabled";
+};
+
+&pmi8998_torch0 {
+	qcom,max-current = <200>;
+	qcom,current-ma = <200>;
+};
+
+&pmi8998_torch1 {
+	status = "disabled";
+};
+
+&pmi8998_torch2 {
+	status = "disabled";
+};
+
+&pmi8998_switch1 {
+	status = "disabled";
+};
+
+&led_flash_rear {
+	flash-source = <&pmi8998_flash0>;
+	torch-source = <&pmi8998_torch0>;
+};
+
+&led_flash_rear_aux {
+	flash-source = <&pmi8998_flash0>;
+	torch-source = <&pmi8998_torch0>;
+};
+
+&led_flash_front {
+	status = "disabled";
+};
+
+&led_flash_iris {
+	status = "disabled";
+};
+//ASUS_BSP flash ---
+
+//ASUS_BSP CCI +++
+&i2c_freq_100Khz {
+	hw-scl-stretch-en = <1>;
+};
+&i2c_freq_400Khz {
+	hw-scl-stretch-en = <1>;
+};
+&i2c_freq_1Mhz {
+	hw-scl-stretch-en = <1>;
+};
+//ASUS_BSP CCI ---
+
+//ASUS_BSP VCM +++
+&actuator_regulator {
+	gpio = <&pm8998_gpios 13 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&camera_vaf_en_default>;
+};
+
+&cam_cci {
+	actuator_rear1: qcom,actuator@3E {
+		cell-index = <0>;
+		reg = <0x3E>;
+		compatible = "qcom,actuator";
+		cci-master = <0>;
+		status = "ok";
+	};
+};
+
+&actuator_rear {
+	status = "disabled";
+};
+
+&actuator_rear_aux {
+	status = "disabled";
+};
+
+&actuator_front {
+	status = "disabled";
+};
+//ASUS_BSP VCM ---
+
+//ASUS_BSP OIS +++
+&ois_rear {
+	status = "disabled";
+};
+
+&cam_cci {
+	ois_rear1: qcom,ois@3E {
+		cell-index = <0>;
+		reg = <0x3E>;
+		compatible = "qcom,lc898123f40";
+		cci-master = <0>;
+		qcom,i2c-freq-mode = <1>;
+		qcom,slave-id = <0x7C 0xD00100 0x00000082>;
+
+		rgltr-cntrl-support;
+		cam_vaf-supply = <&actuator_regulator>;
+		cam_vana-supply = <&pm8998_l22>;
+		cam_vio-supply = <&pm8998_lvs1>;
+		//cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vaf", "cam_vana","cam_vio";
+		rgltr-min-voltage = <2800000 2864000 1800000 >;
+		rgltr-max-voltage = <2800000 2864000 1800000 >;
+		rgltr-load-current = <300000 15000 3600 >;
+
+/*
+		gpios = <&tlmm 13 0>;
+		gpio-req-tbl-num = <0>;
+		gpio-req-tbl-flags = <1>;
+		gpio-req-tbl-label = "CAMIF_MCLK0";
+
+		clocks = <&clock_camcc CAM_CC_MCLK0_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_active>;
+		pinctrl-1 = <&cam_sensor_mclk0_suspend>;
+*/
+		qcom,cam-power-seq-type = "cam_vio","cam_vana","cam_vaf";
+		qcom,cam-power-seq-cfg-val = <1800000 2864000 2800000>;
+		qcom,cam-power-seq-delay = <0 0 0>;
+
+/*
+		qcom,cam-power-seq-type = "cam_vio","cam_vaf","cam_vana","cam_clk";
+		qcom,cam-power-seq-cfg-val = <1800000 2800000 2864000 19200000>;
+		qcom,cam-power-seq-delay = <1 0 0 100>;//delay 1ms for VIO,delay 100ms for OIS
+*/
+		status = "ok";
+	};
+
+};
+//ASUS_BSP OIS ---
+
+//ASUS_BSP EEPROM +++
+&cam_cci {
+	eeprom_rear0: qcom,eeprom@10 {
+		cell-index = <0>;
+		reg = <0x0>;
+		cci-master = <0>;
+		compatible = "qcom,eeprom";
+		cam_vio-supply = <&pm8998_lvs1>;
+		regulator-names = "cam_vio";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <300000>;
+		status = "ok";
+	};
+	eeprom_front1: qcom,eeprom@11 {
+		cell-index = <1>;
+		reg = <0x1>;
+		cci-master = <0>;
+		compatible = "qcom,eeprom";
+		cam_vio-supply = <&pm8998_lvs1>;
+		regulator-names = "cam_vio";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <300000>;
+		status = "ok";
+	};
+	eeprom_rear_aux2: qcom,eeprom@12 {
+		cell-index = <2>;
+		reg = <0x2>;
+		cci-master = <0>;
+		compatible = "qcom,eeprom";
+		cam_vio-supply = <&pm8998_lvs1>;
+		regulator-names = "cam_vio";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <300000>;
+		status = "ok";
+	};
+};
+
+&eeprom_rear {
+	status = "disabled";
+};
+&eeprom_rear_aux {
+	status = "disabled";
+};
+
+&eeprom_front {
+	status = "disabled";
+};
+//ASUS_BSP EEPROM ---
+
+//ASUS_BSP sensor +++
+&cam_cci {
+	qcom,cam-sensor@0 {
+		cell-index = <0>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x0>;
+		csiphy-sd-index = <0>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		led-flash-src = <&led_flash_rear>;
+		actuator-src = <&actuator_rear1>;
+		ois-src = <&ois_rear1>;
+		eeprom-src = <&eeprom_rear0>;
+		cam_vio-supply = <&pm8998_lvs1>;
+		cam_vana-supply = <&camera_vana0_ldo>;
+		cam_vdig-supply = <&camera_rear_vdig_ldo>;
+//		cam_vaf-supply = <&pm8998_l22>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vana", "cam_vdig",
+			"cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 2800000 1050000 0>;
+		rgltr-max-voltage = <1800000 2800000 1050000 0>;
+		rgltr-load-current = <300000 100000 232300 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_active>;
+		pinctrl-1 = <&cam_sensor_mclk0_suspend>;
+		gpios = <&tlmm 13 0>,
+			<&tlmm 80 0>,
+			<&tlmm 22 0>;
+		gpio-reset = <1>;
+		gpio-vana = <0x0>;
+		gpio-custom1=<2>;
+		gpio-req-tbl-num = <0 1 2>;
+		gpio-req-tbl-flags = <1 0 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK0",
+					"CAM_RESET0",
+					"CAM_CUSTOM_GPIO1";
+		sensor-mode = <0>;
+		cci-master = <0>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK0_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	qcom,cam-sensor@1 {
+		cell-index = <1>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x1>;
+		csiphy-sd-index = <2>;
+		sensor-position-roll = <270>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <0>;
+		actuator-src = <0x0>;
+		led-flash-src = <0x0>;
+		eeprom-src = <&eeprom_front1>;
+		cam_vdig-supply = <&camera_1P2_vdig_ldo>;
+		cam_vio-supply = <&pm8998_lvs1>;
+		cam_vana-supply = <&camera_vana0_ldo>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vdig","cam_vio", "cam_vana",
+			"cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1200000 1800000 2800000 0>;
+		rgltr-max-voltage = <1200000 1800000 2800000 0>;
+		rgltr-load-current = <300000 300000 21500 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk2_active>;
+		pinctrl-1 = <&cam_sensor_mclk2_suspend>;
+		gpios = <&tlmm 15 0>,
+			<&tlmm 9 0>;
+		gpio-reset = <1>;
+		gpio-vana = <0x0>;
+		gpio-req-tbl-num = <0 1>;
+		gpio-req-tbl-flags = <1 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK1",
+					"CAM_RESET1";
+		sensor-mode = <0>;
+		cci-master = <1>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK2_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <6400000>;
+	};
+
+	qcom,cam-sensor@2 {
+		cell-index = <2>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x2>;
+		csiphy-sd-index = <1>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		actuator-src = <0x0>;
+		led-flash-src = <&led_flash_rear_aux>;
+		eeprom-src = <&eeprom_rear_aux2>;
+		cam_vdig-supply = <&camera_1P2_vdig_ldo>;
+		cam_vio-supply = <&pm8998_lvs1>;
+		cam_vana-supply = <&camera_vana0_ldo>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vdig","cam_vio", "cam_vana",
+			"cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1200000 1800000 2800000 0>;
+		rgltr-max-voltage = <1200000 1800000 2800000 0>;
+		rgltr-load-current = <300000 300000 21500 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_active>;
+		pinctrl-1 = <&cam_sensor_mclk1_suspend>;
+		gpios = <&tlmm 14 0>,
+			<&tlmm 28 0>;
+		gpio-reset = <1>;
+		gpio-vana = <0x0>;
+		gpio-req-tbl-num = <0 1>;
+		gpio-req-tbl-flags = <1 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK1",
+					"CAM_RESET1";
+		sensor-mode = <0>;
+		cci-master = <1>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK1_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <6400000>;
+	};
+
+	qcom,cam-sensor@3 {
+		status = "disabled";
+	};
+};
+//ASUS_BSP sensor ---

@@ -41,6 +41,7 @@
 
 	replicator_qdss: replicator@6046000 {
 		compatible = "arm,primecell";
+		status = "disabled";
 		arm,primecell-periphid = <0x0003b909>;
 
 		reg = <0x6046000 0x1000>;
@@ -1734,6 +1735,7 @@
 
 	cti2: cti@6012000 {
 		compatible = "arm,primecell";
+		status = "disabled";
 		arm,primecell-periphid = <0x0003b966>;
 		reg = <0x6012000 0x1000>;
 		reg-names = "cti-base";
