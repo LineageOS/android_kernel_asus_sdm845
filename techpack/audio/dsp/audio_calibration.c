@@ -20,11 +20,23 @@
 #include <dsp/msm_audio_ion.h>
 #include <dsp/audio_calibration.h>
 #include <dsp/audio_cal_utils.h>
+/* ASUS_BSP +++ */
+#include <sound/soc.h>
+#include "../../asoc/codecs/wcd-mbhc-v2.h"
+/* ASUS_BSP --- */
+#include <linux/input.h>
 
 struct audio_cal_client_info {
 	struct list_head		list;
 	struct audio_cal_callbacks	*callbacks;
 };
+
+/* ASUS_BPS +++ */
+uint32_t g_ZL;
+uint32_t g_ZR;
+EXPORT_SYMBOL(g_ZL);
+EXPORT_SYMBOL(g_ZR);
+/* ASUS_BPS --- */
 
 struct audio_cal_info {
 	struct mutex			common_lock;
@@ -34,7 +46,11 @@ struct audio_cal_info {
 };
 
 static struct audio_cal_info	audio_cal;
-
+//ASUS_BSP++
+int g_audiowizard_force_preset_state = 0;
+struct input_dev *audiowizard;
+struct input_dev *audiowizard_channel;
+//ASUS_BSP--
 
 static bool callbacks_are_equal(struct audio_cal_callbacks *callback1,
 				struct audio_cal_callbacks *callback2)
@@ -393,14 +409,57 @@ static int audio_cal_release(struct inode *inode, struct file *f)
 
 	return ret;
 }
-
+//ASUS_BSP++
+static void send_audiowizard_state(struct input_dev *dev ,int audiowizard_state)
+{
+	if(audiowizard_state == 2){
+		input_report_switch(audiowizard,SW_AUDIOWIZARD_RINGTONG,0);
+		input_report_switch(audiowizard,SW_AUDIOWIZARD_HIFI,1);
+	}else if (audiowizard_state == 1)
+	{
+		input_report_switch(audiowizard,SW_AUDIOWIZARD_RINGTONG,1);
+		input_report_switch(audiowizard,SW_AUDIOWIZARD_HIFI,0);
+	}else{
+		input_report_switch(audiowizard,SW_AUDIOWIZARD_RINGTONG,0);
+		input_report_switch(audiowizard,SW_AUDIOWIZARD_HIFI,0);
+	}
+}
+//ASUS_BSP--
+//sherry++
+static void send_audiowizard_channels(struct input_dev *dev ,int channels)
+{
+	if(channels == 1){
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_2,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_M,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_1,1);
+	}
+	else if (channels ==2)
+	{
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_1,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_M,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_2,1);
+	}
+	else if (channels > 2){
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_1,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_2,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_M,1);
+	}
+	else
+	{
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_1,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_2,0);
+		input_report_switch(dev,SW_AUDIOWIZARD_CHANNELS_M,0);
+	}
+}
+//sherry--
 static long audio_cal_shared_ioctl(struct file *file, unsigned int cmd,
 							void __user *arg)
 {
 	int ret = 0;
 	int32_t size;
 	struct audio_cal_basic *data = NULL;
-
+	struct headset_imp_val *imp_val = NULL; // ASUS_BSP +++
+	int audiowizard_force_channels =2;
 	pr_debug("%s\n", __func__);
 
 	switch (cmd) {
@@ -411,6 +470,68 @@ static long audio_cal_shared_ioctl(struct file *file, unsigned int cmd,
 	case AUDIO_GET_CALIBRATION:
 	case AUDIO_POST_CALIBRATION:
 		break;
+	/* ASUS_BSP +++ */
+	case AUDIO_GET_HS_IMP:
+		printk("AUDIO_GET_HS_IMP : start\n");
+		mutex_lock(&audio_cal.cal_mutex[GET_IMP_TYPE]);
+		imp_val = kmalloc(sizeof(struct headset_imp_val), GFP_KERNEL);
+		if (imp_val == NULL) {
+			//pr_err("%s: could not allocated codec_reg!\n", __func__);
+			printk("%s: could not allocated codec_reg!\n", __func__);
+			ret = -ENOMEM;
+			mutex_unlock(&audio_cal.cal_mutex[GET_IMP_TYPE]);
+			goto done;
+		}
+		if (copy_from_user(imp_val, (void *)arg,
+				sizeof(struct headset_imp_val))) {
+			//pr_err("%s: Could not copy codec_reg from user\n", __func__);
+			printk("%s: Could not copy codec_reg from user\n", __func__);
+			ret = -EFAULT;
+			mutex_unlock(&audio_cal.cal_mutex[GET_IMP_TYPE]);
+			goto done;
+		}
+		imp_val->ZL = g_ZL;
+		imp_val->ZR = g_ZR;
+		printk("%s: RR = %d , LL = %d\n", __func__ , imp_val->ZR , imp_val->ZL);
+		if (copy_to_user((void *)arg, imp_val,
+				sizeof(struct headset_imp_val))) {
+			//pr_err("%s: Could not copy imp_val to user\n", __func__);
+			printk("%s: Could not copy imp_val to user\n", __func__);
+			ret = -EFAULT;
+		}
+		mutex_unlock(&audio_cal.cal_mutex[GET_IMP_TYPE]);
+		printk("AUDIO_GET_HS_IMP : done\n");
+		goto done;
+	/* ASUS_BSP --- */
+	/* ASUS_BSP ++ */
+	case AUDIO_SET_AUDIOWIZARD_FORCE_PRESET:
+		mutex_lock(&audio_cal.cal_mutex[AUDIOWIZARD_FORCE_PRESET_TYPE]);
+		printk(" audio_cal_shared_ioctl #### AUDIO_SET_AUDIOWIZARD_FORCE_PRESET ");
+		if (copy_from_user(&g_audiowizard_force_preset_state, (void *)arg,
+				sizeof(g_audiowizard_force_preset_state))) {
+			pr_err("%s: Could not copy g_audiowizard_force_preset_state from user\n", __func__);
+			ret = -EFAULT;
+		}
+		printk(" audio_cal_shared_ioctl #### AUDIO_SET_AUDIOWIZARD_FORCE_PRESET g_audiowizard_force_preset_state:%d",g_audiowizard_force_preset_state);
+		send_audiowizard_state(audiowizard,g_audiowizard_force_preset_state);
+		input_sync(audiowizard);
+		mutex_unlock(&audio_cal.cal_mutex[AUDIOWIZARD_FORCE_PRESET_TYPE]);
+		goto done;
+	//ASUS_BSP--
+	/* ASUS_BSP sherry ++ */
+	case AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL:
+	mutex_lock(&audio_cal.cal_mutex[AUDIOWIZARD_FORCE_CHANNEL_TYPE]);
+	if (copy_from_user(&audiowizard_force_channels, (void *)arg,
+				sizeof(audiowizard_force_channels))) {
+			pr_err("%s: Could not copy audiowizard_force_channels from user\n", __func__);
+ 			ret = -EFAULT;
+ 		}
+    printk("audio_cal_shared_ioctl  AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL audiowizard_force_channels %d ", audiowizard_force_channels);
+	send_audiowizard_channels(audiowizard_channel,audiowizard_force_channels);
+	input_sync(audiowizard_channel);
+	mutex_unlock(&audio_cal.cal_mutex[AUDIOWIZARD_FORCE_CHANNEL_TYPE]);
+	goto done;
+	//ASUS_BSP--
 	default:
 		pr_err("%s: ioctl not found!\n", __func__);
 		ret = -EFAULT;
@@ -516,6 +637,7 @@ unlock:
 	mutex_unlock(&audio_cal.cal_mutex[data->hdr.cal_type]);
 done:
 	kfree(data);
+	kfree(imp_val); /* ASUS_BSP +++ */
 	return ret;
 }
 
@@ -539,6 +661,16 @@ static long audio_cal_ioctl(struct file *f,
 							204, compat_uptr_t)
 #define AUDIO_POST_CALIBRATION32	_IOWR(CAL_IOCTL_MAGIC, \
 							205, compat_uptr_t)
+/* ASUS_BSP  +++ */
+#define AUDIO_GET_HS_IMP32			_IOWR(CAL_IOCTL_MAGIC, \
+							230, compat_uptr_t)
+/* ASUS_BSP  --- */
+//ASUS_BSP++
+#define AUDIO_SET_AUDIOWIZARD_FORCE_PRESET32	_IOWR(CAL_IOCTL_MAGIC, \
+							221, compat_uptr_t)
+#define AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL32	_IOWR(CAL_IOCTL_MAGIC, \
+							222, compat_uptr_t)
+//ASUS_BSP--
 
 static long audio_cal_compat_ioctl(struct file *f,
 		unsigned int cmd, unsigned long arg)
@@ -565,6 +697,21 @@ static long audio_cal_compat_ioctl(struct file *f,
 	case AUDIO_POST_CALIBRATION32:
 		cmd64 = AUDIO_POST_CALIBRATION;
 		break;
+	/* ASUS_BSP +++ */
+	case AUDIO_GET_HS_IMP32:
+		cmd64 = AUDIO_GET_HS_IMP;
+		break;
+	/* ASUS_BSP --- */
+	//ASUS_BSP++
+	case AUDIO_SET_AUDIOWIZARD_FORCE_PRESET32:
+		cmd64 = AUDIO_SET_AUDIOWIZARD_FORCE_PRESET;
+		break;
+	//ASUS_BSP--
+	//ASUS_BSP sherry++
+	case AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL32:
+		cmd64 = AUDIO_SET_AUDIOWIZARD_FORCE_CHANNEL;
+		break;
+	//ASUS_BSP--
 	default:
 		pr_err("%s: ioctl not found!\n", __func__);
 		ret = -EFAULT;
@@ -592,14 +739,38 @@ struct miscdevice audio_cal_misc = {
 	.name	= "msm_audio_cal",
 	.fops	= &audio_cal_fops,
 };
-
 static int __init audio_cal_init(void)
 {
 	int i = 0;
+	int ret =0;
 
 	pr_debug("%s\n", __func__);
-
 	cal_utils_init();
+	//ASUS_BSP++
+	audiowizard = input_allocate_device();
+	if(!audiowizard)
+		pr_err("%s: [Inputevent]failed to allocate inputevent audiowizard\n", __func__);
+	audiowizard->name = "audiowizard";
+	input_set_capability(audiowizard,EV_SW,0x0b);
+	input_set_capability(audiowizard,EV_SW,0x0d);
+	ret = input_register_device(audiowizard);
+	if (ret<0)
+		pr_err("%s: [Inputevent]failed to register inputevent audiowizard\n", __func__);
+	//ASUS_BSP--
+	if (ret < 0)
+		pr_err("%s: failed to register switch audiowizard_force_preset\n", __func__);
+//sherry for channels ++
+	audiowizard_channel = input_allocate_device();
+	if(!audiowizard_channel)
+		pr_err("%s: [Inputevent]failed to allocate inputevent audiowizard_channel\n", __func__);
+	audiowizard_channel->name = "audiowizard_channel";
+	input_set_capability(audiowizard_channel,EV_SW,SW_AUDIOWIZARD_CHANNELS_1); //sherry
+	input_set_capability(audiowizard_channel,EV_SW,SW_AUDIOWIZARD_CHANNELS_2); //sherry
+	input_set_capability(audiowizard_channel,EV_SW,SW_AUDIOWIZARD_CHANNELS_M); //sherry
+	ret = input_register_device(audiowizard_channel);
+	if (ret<0)
+		pr_err("%s: [Inputevent]failed to register inputevent audiowizard_channel\n", __func__);
+//sherry --
 	memset(&audio_cal, 0, sizeof(audio_cal));
 	mutex_init(&audio_cal.common_lock);
 	for (; i < MAX_CAL_TYPES; i++) {
@@ -615,7 +786,8 @@ static void __exit audio_cal_exit(void)
 	int i = 0;
 	struct list_head *ptr, *next;
 	struct audio_cal_client_info *client_info_node;
-
+	input_free_device(audiowizard);
+	input_free_device(audiowizard_channel);
 	for (; i < MAX_CAL_TYPES; i++) {
 		list_for_each_safe(ptr, next,
 			&audio_cal.client_info[i]) {
