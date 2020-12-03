@@ -206,7 +206,7 @@
  * NOTE: if FTS_GET_VENDOR_ID_NUM > 1, it's the fw corresponding with FTS_VENDOR_ID
  */
 
-#define FTS_UPGRADE_FW_FILE                      "include/firmware/ASUS_DRACO_8716F_03_V3B_D18_20200316_app.i"
+#define FTS_UPGRADE_FW_FILE                      "include/firmware/ASUS_DRACO_8716F_03_V49_D18_20201006_app.i"
 
 /*
  * if FTS_GET_VENDOR_ID_NUM >= 2, fw corrsponding with FTS_VENDOR_ID2

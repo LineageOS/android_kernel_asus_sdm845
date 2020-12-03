@@ -4155,6 +4155,7 @@ int vfs_unlink2(struct vfsmount *mnt, struct inode *dir, struct dentry *dentry, 
 {
 	struct inode *target = dentry->d_inode;
 	int error = may_delete(mnt, dir, dentry, 0);
+	printk("xxx Deleting file  '%.*s' uid %u gid %u pid %u comm %s\n",dentry->d_name.len, dentry->d_name.name,dir->i_uid.val, dir->i_gid.val,current->pid,current->comm);
 
 	if (error)
 		return error;

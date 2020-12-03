@@ -2374,6 +2374,7 @@ void d_delete(struct dentry * dentry)
 	/*
 	 * Are we the only user?
 	 */
+	 printk("xxx Deleting file '%.*s' \n",dentry->d_name.len, dentry->d_name.name);
 again:
 	spin_lock(&dentry->d_lock);
 	inode = dentry->d_inode;
