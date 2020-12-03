@@ -38,7 +38,7 @@
     };
 };*/
 
-&soc {
+/*&soc {
         hall_sensor {
                 compatible = "qcom,hall";
                 pinctrl-names = "hall_gpio_high","hall_gpio_low";
@@ -46,7 +46,7 @@
                 pinctrl-1 = <&gpio_hall_suspend>;
                 qcom,hall-gpio = <&tlmm 124 0x0>;
         };
-};
+};*/
 
 &pmi8998_haptics {
 	qcom,wave-play-rate-us = <4255>;
