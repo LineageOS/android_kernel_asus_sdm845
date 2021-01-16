@@ -1728,6 +1728,12 @@ static int qpnp_rgb_set(struct qpnp_led_data *led)
 			}
 		}
 		period_us = led->rgb_cfg->pwm_cfg->pwm_period_us;
+		if ((unsigned int)period_us >
+			(unsigned int)(-1) / NSEC_PER_USEC) {
+			period_us = (unsigned int)(-1) / NSEC_PER_USEC;
+			dev_err(&led->pdev->dev,
+				"period_us overflow, set to max value %d\n", period_us);
+		}
 		if (period_us > INT_MAX / NSEC_PER_USEC) {
 			duty_us = (period_us * led->cdev.brightness) /
 				LED_FULL;
