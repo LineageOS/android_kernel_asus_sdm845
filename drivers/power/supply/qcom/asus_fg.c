@@ -73,7 +73,7 @@ struct CYCLE_COUNT_DATA g_cycle_count_data = {
 #define BAT_HEALTH_DATA_MAGIC  0x86
 #define BAT_HEALTH_DATA_BACKUP_MAGIC 0x87
 #define ZS620KL_DESIGNED_CAPACITY 3150 //mAh
-#define BAT_HEALTH_DATA_SD_FILE_NAME   "/sdcard/.bh"
+#define BAT_HEALTH_DATA_SD_FILE_NAME   "/APD/.bh"
 #define BAT_HEALTH_START_LEVEL 70
 #define BAT_HEALTH_END_LEVEL 100
 static bool g_bathealth_initialized = false;
