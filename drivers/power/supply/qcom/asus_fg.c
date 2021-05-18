@@ -73,7 +73,7 @@ struct CYCLE_COUNT_DATA g_cycle_count_data = {
 #define BAT_HEALTH_DATA_MAGIC  0x86
 #define BAT_HEALTH_DATA_BACKUP_MAGIC 0x87
 #define ZS620KL_DESIGNED_CAPACITY 3150 //mAh
-#define BAT_HEALTH_DATA_SD_FILE_NAME   "/sdcard/.bh"
+#define BAT_HEALTH_DATA_SD_FILE_NAME   "/APD/.bh"
 #define BAT_HEALTH_START_LEVEL 70
 #define BAT_HEALTH_END_LEVEL 100
 static bool g_bathealth_initialized = false;
@@ -1191,13 +1191,13 @@ int asus_batt_cycle_count_init(void)
 	return 0;
 }
 
-int check_sdcard_file_ok(void)
+int check_apd_file_ok(void)
 {
 	int rc;
 
-	rc = (int)sys_access("/sdcard", 0);
+	rc = (int)sys_access("/APD", 0);
 	if(rc < 0){
-		pr_err("data partion is not ok!\n");
+		pr_err("APD partion is not ok!\n");
 	}
 	return rc;
 }
@@ -1238,7 +1238,7 @@ static int backup_bat_safety(void)
 }
 
 
-int asus_backup_batinfo_to_sdcard(void)
+int asus_backup_batinfo_to_apd(void)
 {
 	char *buf = NULL;
 	int rc;
@@ -1284,7 +1284,7 @@ static int write_back_cycle_count_data(void)
 	if(rc<0)
 		pr_err("%s:Write file:%s err!\n", __FUNCTION__, CYCLE_COUNT_FILE_NAME);
 
-	init_backup_batinfo_ok = asus_backup_batinfo_to_sdcard();
+	init_backup_batinfo_ok = asus_backup_batinfo_to_apd();
 
     // Notify ims battery condition
     notify_battery_condition(g_cycle_count_data.reload_condition);
@@ -1609,11 +1609,11 @@ done:
 
 out:
 	if(g_cyclecount_initialized && (init_backup_batinfo_ok < 0) ){
-		rc = check_sdcard_file_ok();
+		rc = check_apd_file_ok();
 		if(rc < 0){
 			goto WORK;
 		}
-		init_backup_batinfo_ok = asus_backup_batinfo_to_sdcard();
+		init_backup_batinfo_ok = asus_backup_batinfo_to_apd();
 	}
 
 WORK:
@@ -2218,7 +2218,7 @@ void battery_health_worker(struct work_struct *work)
 
 #if 0
 static void update_battery_metadata(struct fg_chip *chip){
-	//copy health data to sdcard
+	//copy health data to APD
 	batt_health_csc_backup();
 }
 

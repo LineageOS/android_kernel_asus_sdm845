@@ -109,7 +109,7 @@ bool is_ubatlife_dischg(void)
 //ASUS_BSP ---
 
 //ASUS_BSP +++
-#define CHGLimit_PATH "/vendor/asdf/CHGLimit_kernel"
+#define CHGLimit_PATH "/asdf/CHGLimit_kernel"
 static bool check_ultrabatterylife_enable(void)
 {
 	struct file *fp = NULL;
