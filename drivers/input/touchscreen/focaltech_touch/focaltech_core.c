@@ -86,6 +86,8 @@ static struct wakeup_source fts_wakelock;
 #define TOUCH_STATUS_PROC_FILE "driver/touch_status"
 #define TOUCH_PANEL_ID "dsi_panel_AUO_H618DAX01_video_display"
 
+static bool disable_fts_fw_upgrade __read_mostly;
+
 static ssize_t focal_touch_function_show(struct file *filp, char __user *buff, size_t len, loff_t *off);
 static ssize_t focal_touch_function_store(struct file *filp, const char __user *buff, size_t len, loff_t *off);
 static ssize_t focal_touch_status_show(struct file *filp, char __user *buff, size_t len, loff_t *off);
@@ -1915,6 +1917,14 @@ static int __init fts_ts_init(void)
 {
     int ret = 0;
 
+    if( disable_fts_fw_upgrade ) {
+        #define FTS_AUTO_UPGRADE_EN 0
+        FTS_INFO("FW Auto Upgrade Disabled");
+        } else {
+        #define FTS_AUTO_UPGRADE_EN 1
+        FTS_INFO("FW Auto Upgrade Enabled");
+    }
+
     FTS_FUNC_ENTER();
     ret = i2c_add_driver(&fts_ts_driver);
     if ( ret != 0 ) {
@@ -1936,6 +1946,7 @@ static void __exit fts_ts_exit(void)
     i2c_del_driver(&fts_ts_driver);
 }
 
+module_param(disable_fts_fw_upgrade, bool, 0664);
 module_init(fts_ts_init);
 module_exit(fts_ts_exit);
 

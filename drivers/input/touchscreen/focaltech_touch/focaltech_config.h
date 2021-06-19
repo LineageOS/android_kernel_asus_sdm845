@@ -171,11 +171,6 @@
 
 /********************** Upgrade ****************************/
 /*
- * auto upgrade, please keep enable
- */
-#define FTS_AUTO_UPGRADE_EN                     1
-
-/*
  * auto upgrade for lcd cfg
  */
 #define FTS_AUTO_LIC_UPGRADE_EN                 0
