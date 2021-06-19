@@ -65,6 +65,9 @@ struct upgrade_func *upgrade_func_list[] = {
     &upgrade_func_ft8716,
 };
 struct fts_upgrade *fwupgrade;
+
+static bool disable_fts_fw_upgrade __read_mostly;
+
 /*****************************************************************************
 * Static function prototypes
 *****************************************************************************/
@@ -1655,6 +1658,13 @@ static void fts_fwupg_work(struct work_struct *work)
     fts_esdcheck_switch(DISABLE);
 #endif
 
+    if( disable_fts_fw_upgrade ) {
+        FTS_ERROR("FW upgrade disabled!");
+        return -EINVAL;
+    } else {
+    FTS_INFO("FW upgrade enabled");
+    }
+
     FTS_INFO("get upgrade fw file");
     ret = fts_fwupg_get_fw_file(ts_data);
     fts_fwupg_init_ic_detail();
@@ -1751,3 +1761,5 @@ int fts_fwupg_exit(struct fts_ts_data *ts_data)
 }
 
 #endif  /* #if FTS_AUTO_UPGRADE_EN */
+
+module_param(disable_fts_fw_upgrade, bool, 0664);
