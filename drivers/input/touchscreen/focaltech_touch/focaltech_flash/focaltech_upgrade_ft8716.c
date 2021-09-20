@@ -117,6 +117,7 @@ static int fts_ft8716_upgrade(struct i2c_client *client, u8 *buf, u32 len)
     ret = fts_fwupg_reset_in_boot(client);
     if (ret < 0) {
         FTS_ERROR("reset to normal boot fail");
+        return -EIO;
     }
 
     msleep(400);
