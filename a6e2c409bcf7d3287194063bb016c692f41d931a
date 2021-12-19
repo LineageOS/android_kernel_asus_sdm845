@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "baf59b4e_fe289cfd",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19252
+      },
+      "writtenOn": "2021-12-19T04:25:56Z",
+      "side": 1,
+      "message": "intermittently does not work... something else is still going on with Focaltech FW Automatic Updater...",
+      "revId": "a6e2c409bcf7d3287194063bb016c692f41d931a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
