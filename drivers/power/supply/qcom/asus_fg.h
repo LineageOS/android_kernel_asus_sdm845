@@ -108,26 +108,6 @@ struct BATT_SAFETY_UPGRADE_PARAMS{
 	int vbat_full_mv;
 };
 
-//ASUS_BS battery health upgrade +++
-#define BAT_HEALTH_NUMBER_MAX 21
-struct BAT_HEALTH_DATA{
-	int magic;
-	int bat_current;
-	unsigned long long bat_current_avg;
-	unsigned long long accumulate_time; //second
-	unsigned long long accumulate_current; //uA
-	int bat_health;
-	unsigned long start_time;
-	unsigned long end_time;
-};
-
-struct BAT_HEALTH_DATA_BACKUP{
-    char date[20];
-    int health;
-};
-extern void asus_add_battery_health_fun(void);
-//ASUS_BSP battery health upgrade ---
-
 extern struct BATT_SAFETY_UPGRADE_PARAMS batt_safety_upgrade_params[];
 extern struct CYCLE_COUNT_DATA g_cycle_count_data;
 extern int g_cyclecount_initialized;
