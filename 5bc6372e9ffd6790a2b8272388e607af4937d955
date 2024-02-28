@@ -16,6 +16,23 @@
       "message": "confirmed working for me and another Z01R user",
       "revId": "5bc6372e9ffd6790a2b8272388e607af4937d955",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "efe7ff21_c1761951",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2024-02-28T15:55:21Z",
+      "side": 1,
+      "message": "Does stock support it?",
+      "revId": "5bc6372e9ffd6790a2b8272388e607af4937d955",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ],
   "submitRequirementResults": []
